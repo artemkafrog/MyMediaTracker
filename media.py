@@ -14,6 +14,18 @@ class MediaItem(ABC):
     @property
     def rating(self):
         return self._rating
+
+    @property
+    def status(self):
+        return self._status
+
+    @property
+    def title(self):
+        return self._title
+
+    @property
+    def genres(self):
+        return self._genres
     
     @rating.setter
     def rating(self, value: float):
@@ -21,14 +33,11 @@ class MediaItem(ABC):
             self._rating = value
         else:
             raise ValueError(f"Incorrect rating: {value}")
-        
-    @property
-    def status(self):
-        return self._status
     
     @status.setter
     def status(self, value: Status):
         self._status = value
+
 
     @abstractmethod
     def get_duration(self, type: MediaType) -> float: 
@@ -44,8 +53,9 @@ class MediaItem(ABC):
         raise TypeError(f"Incorrect type: {type(other)}")
     
 class Book(MediaItem):
-    def __init__(self, *args, pages: int):
-        super().__init__(*args)
+    def __init__(self, title: str, release_date: date,
+                 rating: float, status: Status, genres: list[str], pages: int):
+        super().__init__(title, release_date, rating, status, genres)
         self.__pages = pages
 
     def get_duration(self, type: MediaType) -> float: 
@@ -66,8 +76,10 @@ class Book(MediaItem):
         raise TypeError(f"Incorrect type for the book: {type}")
 
 class Movie(MediaItem):
-    def __init__(self, *args, minutes: int):
-        super().__init__(*args)
+    def __init__(self, title: str, release_date: date,
+                 rating: float, status: Status, genres: list[str],
+                 minutes: int):
+        super().__init__(title, release_date, rating, status, genres)
         self.__minutes = minutes
 
     def get_duration(self, type: MediaType) -> float: 
@@ -88,8 +100,10 @@ class Movie(MediaItem):
         raise TypeError(f"Incorrect type for the movie: {type}")
 
 class TVSeries(MediaItem):
-    def __init__(self, *args, seasons: dict[int,list[int]] | None = None):
-        super().__init__(*args)
+    def __init__(self, title: str, release_date: date,
+                 rating: float, status: Status, 
+                 genres: list[str], seasons: dict[int,list[int]] | None = None):
+        super().__init__(title, release_date, rating, status, genres)
         self.__seasons = dict(seasons) if seasons else {}
 
     def get_duration(self, type: MediaType) -> float: 

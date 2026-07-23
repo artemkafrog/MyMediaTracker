@@ -1,12 +1,18 @@
 from enum import StrEnum, auto
 
 class MediaType(StrEnum):
-    MOVIE = auto()      # movie
-    TV_SERIES = auto()  # tv_series
-    BOOK = auto()       # book
+    "The class contains all types of media"
+    MOVIE = auto()      
+    TV_SERIES = auto()  
+    BOOK = auto()       
 
 class Status(StrEnum):
-    WATCHED = auto()    # watched
-    WATCHING = auto()   # watching
-    PLANNED = auto()    # planned
-    ON_HOLD = auto()    # on_hold
+    "The class contains all types of status"
+    WATCHED = auto()    
+    WATCHING = auto()   
+    PLANNED = auto()    
+    ON_HOLD = auto()    
+
+class Genre(StrEnum):
+    "The class contains all types of genres"
+    pass
