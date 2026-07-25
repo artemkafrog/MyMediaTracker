@@ -26,6 +26,10 @@ class MediaItem(ABC):
     @property
     def genres(self):
         return self._genres
+
+    @property
+    def release_date(self):
+        return self._release_date
     
     @rating.setter
     def rating(self, value: float):
