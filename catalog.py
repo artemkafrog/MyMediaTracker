@@ -58,6 +58,11 @@ class MediaCatalog:
         self._index_title(item.title, item_id)
         return item_id
 
+    def get_item(self, item_id: int) -> MediaItem:
+        if item_id in self._items:
+            return self._items[item_id]
+        raise NotFoundError(f"The item with ID {item_id} does not exist.")
+
     def _index_title(self, title: str, item_id: int):
         clean_title = self._clean_title(title)
         words = clean_title.split()
