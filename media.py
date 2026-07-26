@@ -42,13 +42,16 @@ class MediaItem(ABC):
     def status(self, value: Status):
         self._status = value
 
-
     @abstractmethod
-    def get_duration(self, type: MediaType) -> float: 
+    def get_duration(self) -> float: 
         pass
     
     @abstractmethod
-    def get_summary(self, type: MediaType) -> str:
+    def get_summary(self) -> tuple:
+        pass
+
+    @abstractmethod
+    def get_media_type(self) -> MediaType:
         pass
     
     def __lt__(self, other):
@@ -62,22 +65,21 @@ class Book(MediaItem):
         super().__init__(title, release_date, rating, status, genres)
         self.__pages = pages
 
-    def get_duration(self, type: MediaType) -> float: 
-        if type == MediaType.BOOK:
-            return self.__pages
-        raise TypeError(f"Incorrect type for the book: {type}")
+    def get_duration(self) -> float: 
+        return self.__pages
         
-    def get_summary(self, type: MediaType) -> str:
-        if type == MediaType.BOOK:
-            genres_str = ", ".join(self._genres)
-            return (
-                f"\tTitle: {self._title}\n"
-                f"\tRelease date: {self._release_date}\n"
-                f"\tRating: {self._rating}\n"
-                f"\tPages: {self.__pages}\n"
-                f"\tGenres: {genres_str}"
-            )
-        raise TypeError(f"Incorrect type for the book: {type}")
+    def get_summary(self) -> tuple:
+        genres_str = ", ".join(self._genres)
+        return (
+            self._title,
+            self._release_date,
+            self._rating,
+            self.__pages,
+            genres_str
+        )
+
+    def get_media_type(self) -> MediaType:
+            return MediaType.BOOK
 
 class Movie(MediaItem):
     def __init__(self, title: str, release_date: date,
@@ -86,22 +88,21 @@ class Movie(MediaItem):
         super().__init__(title, release_date, rating, status, genres)
         self.__minutes = minutes
 
-    def get_duration(self, type: MediaType) -> float: 
-        if type == MediaType.MOVIE:
-            return self.__minutes
-        raise TypeError(f"Incorrect type for the movie: {type}")
+    def get_duration(self) -> float: 
+        return self.__minutes
         
-    def get_summary(self, type: MediaType) -> str:
-        if type == MediaType.MOVIE:
-            genres_str = ", ".join(self._genres)
-            return (
-                f"\tTitle: {self._title}\n"
-                f"\tRelease date: {self._release_date}\n"
-                f"\tRating: {self._rating}\n"
-                f"\tTime: {self.__minutes}\n"
-                f"\tGenres: {genres_str}"
-            )
-        raise TypeError(f"Incorrect type for the movie: {type}")
+    def get_summary(self) -> tuple:
+        genres_str = ", ".join(self._genres)
+        return (
+            self._title,
+            self._release_date,
+            self._rating,
+            self.__minutes,
+            genres_str
+        )
+
+    def get_media_type(self) -> MediaType:
+        return MediaType.MOVIE
 
 class TVSeries(MediaItem):
     def __init__(self, title: str, release_date: date,
@@ -110,34 +111,29 @@ class TVSeries(MediaItem):
         super().__init__(title, release_date, rating, status, genres)
         self.__seasons = dict(seasons) if seasons else {}
 
-    def get_duration(self, type: MediaType) -> float: 
-        if type == MediaType.TV_SERIES:
-            summary_time = sum(episode for season_episodes in self.__seasons.values() for episode in season_episodes)
-            return summary_time
-        raise TypeError(f"Incorrect type for TV Series: {type}")
-        
-    def get_summary(self, type: MediaType) -> str:
-        if type == MediaType.TV_SERIES:
-            number_of_seasons = len(self.__seasons)
-            number_of_episodes = self.get_total_episodes(type)
-            summary_time = sum(episode for season_episodes in self.__seasons.values() for episode in season_episodes)
-            genres_str = ", ".join(self._genres)
-            return (
-                f"\tTitle: {self._title}\n"
-                f"\tRelease date: {self._release_date}\n"
-                f"\tRating: {self._rating}\n"
-                f"\tSeasons: {number_of_seasons}\n"
-                f"\tEpisodes: {number_of_episodes}\n"
-                f"\tTime: {summary_time}\n"
-                f"\tGenres: {genres_str}"
-            )
-        raise TypeError(f"Incorrect type for TV Series: {type}")
+    def get_duration(self) -> float: 
+        summary_time = sum(episode for season_episodes in self.__seasons.values() for episode in season_episodes)
+        return summary_time
     
-    def get_total_episodes(self, type: MediaType) -> int:
-        if type == MediaType.TV_SERIES:
-            number_of_episodes = sum(len(episodes) for episodes in self.__seasons.values())
-            return number_of_episodes
-        raise TypeError(f"Incorrect type for TV Series: {type}")
+    def get_summary(self) -> tuple:
+        number_of_seasons = len(self.__seasons)
+        number_of_episodes = self.get_total_episodes(type)
+        summary_time = sum(episode for season_episodes in self.__seasons.values() for episode in season_episodes)
+        genres_str = ", ".join(self._genres)
+        return (
+            self._title,
+            self._release_date,
+            self._rating,
+            number_of_seasons,
+            number_of_episodes,
+            summary_time,
+            genres_str
+        )
+            
+    def get_total_episodes(self) -> int:
+        number_of_episodes = sum(len(episodes) for episodes in self.__seasons.values())
+        return number_of_episodes
 
-    
+    def get_media_type(self) -> MediaType:
+            return MediaType.TV_SERIES
 
