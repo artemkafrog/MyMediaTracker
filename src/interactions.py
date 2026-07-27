@@ -1,6 +1,8 @@
-from media import MediaItem
-from enums import MediaType, Status
-from catalog import MediaCatalog
+from src.media import MediaItem
+from src.enums import MediaType, Status
+from src.catalog import MediaCatalog
+from datetime import datetime, date
+from src.reminder import Reminder
 
 def describe_item(item: MediaItem) -> str:
     item_type = item.get_media_type()
@@ -29,7 +31,7 @@ def describe_item(item: MediaItem) -> str:
 
     description = (
         f"\t{item_status_msg}\n"
-        f"\n\About:\n"
+        f"\n\tAbout:\n"
         f"\tTitle: {title}\n"
         f"\tRelease date: {release_date}\n"
         f"\tRating: {item_rating}/10\n"
@@ -48,6 +50,14 @@ def describe_item(item: MediaItem) -> str:
         return "\tMasterpiece!\n\n" + description
     return description
 
-def change_status(item_id: int, new_status: Status):
-    item = MediaCatalog.get_item(item_id)
+def change_status(catalog: MediaCatalog, item_id: int, new_status: Status):
+    item = catalog.get_item(item_id)    
     item.status = new_status
+
+def get_upcoming_releases(reminder: Reminder, days_ahead=30) -> str:
+    reminders = reminder.get_all_reminders()
+    upcoming_releases = ""
+    for title, days in reminders:
+        if 0 <= days <= days_ahead:
+            upcoming_releases += f"\tTitle: {title}\n\tDays until reminder: {days}\n\n"
+    return upcoming_releases

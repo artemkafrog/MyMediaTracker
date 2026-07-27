@@ -3,3 +3,16 @@ __pycache__/
 
 # enviroments
 venv/
+
+# db
+data/*.db
+data/*.db-journal
+*.db
+*.db-journal
+
+# backups
+backups/
+*.bak
+
+# exports
+exports/*.csv

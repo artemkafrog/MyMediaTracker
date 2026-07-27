@@ -1,11 +1,11 @@
-from datetime import datetime, date, timedelta
-from catalog import MediaCatalog
-from exceptions import NotFoundError
+from datetime import date, timedelta
+from src.catalog import MediaCatalog
+from src.exceptions import NotFoundError
 
 class Reminder:
-    def __init__(self, catalog: MediaCatalog, reminders: dict[int,datetime] = {}):
+    def __init__(self, catalog: MediaCatalog, reminders: dict[int,date] = None):
         self._catalog = catalog
-        self._reminders = reminders
+        self._reminders = reminders.copy() if reminders else {}
 
     def schedule_reminder(self, item_id: int, days_before: int) -> str:
         item = self._catalog.get_item(item_id)
@@ -22,7 +22,7 @@ class Reminder:
                 return f"The reminder: {days} day(s) left. {title}."
         return check_reminder
 
-    def add_reminder(self, item_id: int, date_reminder: datetime) -> str:
+    def add_reminder(self, item_id: int, date_reminder: date) -> str:
         if item_id not in self._reminders:
             self._reminders[item_id] = date_reminder
             return "Date added"
@@ -30,7 +30,7 @@ class Reminder:
             self._reminders[item_id] = date_reminder
             return "Date changed"
         
-    def get_reminder(self, item_id: int)  -> str:
+    def get_reminder(self, item_id: int)  -> tuple[str, int]:
         if item_id not in self._reminders:
             raise NotFoundError("This item doesn't have a reminder")
 
@@ -42,17 +42,13 @@ class Reminder:
         item = self._catalog.get_item(item_id)
         title = item.title
 
-        if days >= 1:
-            return f"The reminder: {days} day(s) left. {title}."
-        elif days == 0:
-            return f"The reminder: today. {title}."
-        else:
-            return f"The {title} reminder was {days} day(s) ago."
+        return (title, days)
 
-    def get_all_reminders(self) -> str:
+    def get_all_reminders(self) -> list[tuple[str,int]]:
+        reminders = []
+        today = date.today()
         for item_id in self._reminders.keys():
 
-            today = date.today()
             target_date = self._reminders[item_id]
             delta = target_date - today
             days = delta.days
@@ -60,9 +56,7 @@ class Reminder:
             item = self._catalog.get_item(item_id)
             title = item.title
 
-            if days >= 1:
-                return f"The reminder: {days} day(s) left. {title}."
-            elif days == 0:
-                return f"The reminder: today. {title}."
-            else:
-                return f"The {title} reminder was {days} day(s) ago."
+            reminders.append((title,days))
+        return reminders
+
+            

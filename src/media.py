@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from datetime import date
-from enums import MediaType, Status
+from src.enums import MediaType, Status
 
 class MediaItem(ABC):
     def __init__(self, title: str, release_date: date,
@@ -9,7 +9,7 @@ class MediaItem(ABC):
         self._release_date = release_date
         self._rating = rating
         self._status = status
-        self._genres = genres
+        self._genres = genres.copy() if genres else []
 
     @property
     def rating(self):
@@ -25,7 +25,7 @@ class MediaItem(ABC):
 
     @property
     def genres(self):
-        return self._genres
+        return self._genres.copy()
 
     @property
     def release_date(self):
@@ -111,14 +111,18 @@ class TVSeries(MediaItem):
         super().__init__(title, release_date, rating, status, genres)
         self.__seasons = dict(seasons) if seasons else {}
 
+    @property
+    def seasons(self):
+        return self.__seasons.copy()
+
     def get_duration(self) -> float: 
         summary_time = sum(episode for season_episodes in self.__seasons.values() for episode in season_episodes)
         return summary_time
     
     def get_summary(self) -> tuple:
         number_of_seasons = len(self.__seasons)
-        number_of_episodes = self.get_total_episodes(type)
-        summary_time = sum(episode for season_episodes in self.__seasons.values() for episode in season_episodes)
+        number_of_episodes = self.get_total_episodes() 
+        summary_time = self.get_duration()
         genres_str = ", ".join(self._genres)
         return (
             self._title,
@@ -129,7 +133,7 @@ class TVSeries(MediaItem):
             summary_time,
             genres_str
         )
-            
+
     def get_total_episodes(self) -> int:
         number_of_episodes = sum(len(episodes) for episodes in self.__seasons.values())
         return number_of_episodes
