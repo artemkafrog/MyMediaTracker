@@ -1,6 +1,6 @@
 import re
 import unicodedata
-from src.media import MediaItem, Movie, TVSeries, Book
+from src.media import MediaItem
 from src.enums import MediaType, Status, Genre
 from src.exceptions import DuplicateError, ValidationError, NotFoundError
 from secrets import randbits
@@ -10,10 +10,10 @@ NOISE = {
     "фильм", "смотреть", "онлайн", "скачать", "бесплатно", "кино", 
     "сериал", "книга", "читать", "скачать", "купить", "новый", 
     "лучший", "популярный", "топ", "сезон", "серия",
-
     "movie", "film", "watch", "online", "download", "free", "cinema",
     "series", "tv", "show", "book", "read", "buy", "new", "best",
-    "top", "season", "episode", "the", "a", "an"
+    "top", "season", "episode", "the", "a", "an",
+    "video", "author", "description", "duration"
 }
 
 class MediaCatalog:
@@ -26,12 +26,11 @@ class MediaCatalog:
             Status.ON_HOLD: set()
         }
         self._by_type: dict[MediaType, set[int]] = {
-            MediaType.MOVIE: set(),
-            MediaType.TV_SERIES: set(),
-            MediaType.BOOK: set()
+            MediaType.VIDEO: set()
         }
         self._by_genre: dict[str, set[int]] = {}
         self._title_index: dict[str, set[int]] = {}
+        self._author_index: dict[str, set[int]] = {}
 
     def add_item(self, item: MediaItem) -> int:
         duplicates = [existing for existing in self._items.values()
@@ -55,6 +54,7 @@ class MediaCatalog:
             self._by_genre[genre].add(item_id)
 
         self._index_title(item.title, item_id)
+        self._index_authors(item.authors, item_id)
         return item_id
 
     def get_item(self, item_id: int) -> MediaItem:
@@ -76,14 +76,16 @@ class MediaCatalog:
             self._title_index[clean_title] = set()
         self._title_index[clean_title].add(item_id)
 
-    def _get_media_type(self, item: MediaItem) -> MediaType | None:
-        if isinstance(item, Movie):
-            return MediaType.MOVIE
-        elif isinstance(item, TVSeries):
-            return MediaType.TV_SERIES
-        elif isinstance(item, Book):
-            return MediaType.BOOK
-        return None
+    def _index_authors(self, authors: list[str], item_id: int):
+        for author in authors:
+            clean_author = author.lower().strip()
+            if clean_author:
+                if clean_author not in self._author_index:
+                    self._author_index[clean_author] = set()
+                self._author_index[clean_author].add(item_id)
+
+    def _get_media_type(self, item: MediaItem) -> MediaType:
+        return MediaType.VIDEO
 
     def get_by_status(self, status: Status) -> list[MediaItem]:
         ids = self._by_status.get(status, set())
@@ -98,6 +100,11 @@ class MediaCatalog:
         ids = self._by_genre.get(genre, set())
         return [self._items[id] for id in ids if id in self._items]
 
+    def get_by_author(self, author: str) -> list[MediaItem]:
+        author = author.lower().strip()
+        ids = self._author_index.get(author, set())
+        return [self._items[id] for id in ids if id in self._items]
+
     def get_top_rated(self, n: int, media_type: MediaType = None) -> list[MediaItem]:
         if media_type:
             items = self.get_by_type(media_type)
@@ -106,7 +113,7 @@ class MediaCatalog:
 
         if len(items) < n:
             raise ValidationError("Not enough items in the catalog") 
-        sorted_items = sorted([item for item in items], key=lambda x: x._rating, reverse=True)
+        sorted_items = sorted([item for item in items], key=lambda x: x.rating, reverse=True)
         return sorted_items[:n]
         
     def search_item(self, query: str = "", **kwargs) -> MediaItem:
@@ -116,7 +123,8 @@ class MediaCatalog:
         try:
             parsed_query = self._parse_query(query)
             
-            has_filters = parsed_query.get("genre") or parsed_query.get("media_type") or parsed_query.get("year")
+            has_filters = (parsed_query.get("genre") or parsed_query.get("media_type") or 
+                          parsed_query.get("year") or parsed_query.get("author"))
             
             if has_filters:
                 candidates = set(self._items.keys())
@@ -135,6 +143,11 @@ class MediaCatalog:
                         id for id in candidates 
                         if self._items[id].release_date.year == year
                     }
+                
+                if parsed_query.get("author"):
+                    author = parsed_query["author"].lower().strip()
+                    author_ids = self._author_index.get(author, set())
+                    candidates &= author_ids
                 
                 if parsed_query.get("title"):
                     title = parsed_query["title"]
@@ -284,6 +297,21 @@ class MediaCatalog:
                         continue
                 return results
             
+            if parsed_query.get("author"):
+                author = parsed_query["author"].lower().strip()
+                results = []
+                for item in catalog:
+                    try:
+                        if hasattr(item, 'authors'):
+                            for a in item.authors:
+                                if author in a.lower() or a.lower() in author:
+                                    results.append(item)
+                                    break
+                    except Exception:
+                        continue
+                if results:
+                    return results
+            
             title = parsed_query.get("title", "")
             if not title:
                 return catalog
@@ -326,7 +354,8 @@ class MediaCatalog:
             "title": "",
             "year": None,
             "media_type": None,
-            "genre": None
+            "genre": None,
+            "author": None
         }
         
         try:
@@ -358,6 +387,12 @@ class MediaCatalog:
                     query_lower = query_lower.replace(eng, "").replace(rus, "")
                     break
             
+            author_match = re.search(r'(?:author|автор|by)\s*[:\s]+([^\s,]+(?:\s+[^\s,]+)*)', query_lower)
+            if author_match:
+                parsed_query["author"] = author_match.group(1).strip()
+                query = query.replace(author_match.group(0), "")
+                query_lower = query_lower.replace(author_match.group(0), "")
+            
             year_match = re.search(r'\b(19\d{2}|20\d{2})\b', query)
             if year_match and len(query.split()) > 1:
                 start, end = year_match.span()
@@ -368,9 +403,7 @@ class MediaCatalog:
                     query_lower = query_lower.replace(year_match.group(0), "")
             
             type_keywords = {
-                MediaType.MOVIE: {"фильм", "movie", "film", "кино", "cinema"},
-                MediaType.TV_SERIES: {"сериал", "series", "tv", "show", "телесериал"},
-                MediaType.BOOK: {"книга", "book", "читать", "read"}
+                MediaType.VIDEO: {"video", "видео", "ролик", "clip", "film", "movie", "фильм"}
             }
             
             for media_type, keywords in type_keywords.items():
@@ -390,7 +423,7 @@ class MediaCatalog:
             
             if clean_tokens:
                 parsed_query["title"] = " ".join(clean_tokens)
-            elif query.strip() and not parsed_query.get("year") and not parsed_query.get("genre"):
+            elif query.strip() and not parsed_query.get("year") and not parsed_query.get("genre") and not parsed_query.get("author"):
                 parsed_query["title"] = query.strip()
                 
         except Exception:
@@ -415,6 +448,13 @@ class MediaCatalog:
                 self._by_genre[genre_lower].discard(item_id)
                 if not self._by_genre[genre_lower]:
                     del self._by_genre[genre_lower]
+        
+        for author in item.authors:
+            author_lower = author.lower().strip()
+            if author_lower in self._author_index:
+                self._author_index[author_lower].discard(item_id)
+                if not self._author_index[author_lower]:
+                    del self._author_index[author_lower]
         
         for key in list(self._title_index.keys()):
             self._title_index[key].discard(item_id)

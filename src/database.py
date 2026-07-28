@@ -3,7 +3,7 @@ import json
 from datetime import date
 from contextlib import contextmanager
 from pathlib import Path
-from src.media import MediaItem, Movie, TVSeries, Book
+from src.media import MediaItem
 from src.enums import MediaType, Status
 from src.exceptions import NotFoundError, DuplicateError, ValidationError
 
@@ -40,29 +40,12 @@ class DatabaseManager:
                     rating REAL CHECK(rating >= 0 AND rating <= 10),
                     release_date TEXT,
                     genres TEXT,
+                    description TEXT,
+                    authors TEXT,
+                    video_path TEXT,
+                    duration INTEGER DEFAULT 0,
                     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                     updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-                );
-                
-                CREATE TABLE IF NOT EXISTS books (
-                    item_id INTEGER PRIMARY KEY,
-                    author TEXT,
-                    pages INTEGER,
-                    FOREIGN KEY (item_id) REFERENCES media_items(id) ON DELETE CASCADE
-                );
-                
-                CREATE TABLE IF NOT EXISTS movies (
-                    item_id INTEGER PRIMARY KEY,
-                    director TEXT,
-                    duration_minutes INTEGER,
-                    FOREIGN KEY (item_id) REFERENCES media_items(id) ON DELETE CASCADE
-                );
-                
-                CREATE TABLE IF NOT EXISTS tv_series (
-                    item_id INTEGER PRIMARY KEY,
-                    seasons TEXT,
-                    total_episodes INTEGER,
-                    FOREIGN KEY (item_id) REFERENCES media_items(id) ON DELETE CASCADE
                 );
                 
                 CREATE TABLE IF NOT EXISTS reminders (
@@ -79,36 +62,22 @@ class DatabaseManager:
                 CREATE INDEX IF NOT EXISTS idx_reminder_date ON reminders(reminder_date);
             """)
         
-    def _item_to_db_data(self, item: MediaItem) -> dict[str, list]:
+    def _item_to_db_data(self, item: MediaItem) -> dict:
         data = {
             'title': item.title,
             'media_type': item.get_media_type().value,
             'status': item.status.value,
             'rating': item.rating,
             'release_date': item.release_date.isoformat() if item.release_date else None,
-            'genres': json.dumps(item.genres)
+            'genres': json.dumps(item.genres),
+            'description': item.description,
+            'authors': json.dumps(item.authors),
+            'video_path': item.video_path,
+            'duration': item.duration
         }
-        
-        if isinstance(item, Book):
-            data.update({
-                'author': getattr(item, '_author', None),
-                'pages': item.get_duration()
-            })
-        elif isinstance(item, Movie):
-            data.update({
-                'director': getattr(item, '_director', None),
-                'duration_minutes': item.get_duration()
-            })
-        elif isinstance(item, TVSeries):
-            seasons = getattr(item, '_TVSeries__seasons', {})
-            data.update({
-                'seasons': json.dumps(seasons),
-                'total_episodes': item.get_total_episodes()
-            })
-        
         return data
     
-    def _db_row_to_item(self, row: dict[str, MediaType | Status]) -> Book | Movie | TVSeries | None:
+    def _db_row_to_item(self, row: dict) -> MediaItem | None:
         if not row:
             return None
         
@@ -116,37 +85,19 @@ class DatabaseManager:
         status = Status(row['status'])
         release_date = date.fromisoformat(row['release_date']) if row['release_date'] else date.today()
         genres = json.loads(row['genres']) if row['genres'] else []
+        authors = json.loads(row['authors']) if row['authors'] else []
         
-        if media_type == MediaType.BOOK:
-            return Book(
-                title=row['title'],
-                release_date=release_date,
-                rating=row['rating'],
-                status=status,
-                genres=genres,
-                pages=row.get('pages', 0)
-            )
-        elif media_type == MediaType.MOVIE:
-            return Movie(
-                title=row['title'],
-                release_date=release_date,
-                rating=row['rating'],
-                status=status,
-                genres=genres,
-                minutes=row.get('duration_minutes', 0)
-            )
-        elif media_type == MediaType.TV_SERIES:
-            seasons = json.loads(row.get('seasons', '{}')) if row.get('seasons') else {}
-            return TVSeries(
-                title=row['title'],
-                release_date=release_date,
-                rating=row['rating'],
-                status=status,
-                genres=genres,
-                seasons=seasons
-            )
-        
-        return None
+        return MediaItem(
+            title=row['title'],
+            release_date=release_date,
+            rating=row['rating'],
+            status=status,
+            genres=genres,
+            description=row.get('description', ''),
+            authors=authors,
+            video_path=row.get('video_path', ''),
+            duration=row.get('duration', 0)
+        )
         
     def add_item(self, item: MediaItem) -> int:
         with self._get_connection() as conn:
@@ -162,39 +113,24 @@ class DatabaseManager:
             data = self._item_to_db_data(item)
             
             cursor.execute("""
-                INSERT INTO media_items (title, media_type, status, rating, release_date, genres)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO media_items (title, media_type, status, rating, release_date, genres, description, authors, video_path, duration)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 data['title'],
                 data['media_type'],
                 data['status'],
                 data['rating'],
                 data['release_date'],
-                data['genres']
+                data['genres'],
+                data['description'],
+                data['authors'],
+                data['video_path'],
+                data['duration']
             ))
             
-            item_id = cursor.lastrowid
-            
-            media_type = data['media_type']
-            if media_type == MediaType.BOOK.value:
-                cursor.execute("""
-                    INSERT INTO books (item_id, author, pages)
-                    VALUES (?, ?, ?)
-                """, (item_id, data.get('author'), data.get('pages')))
-            elif media_type == MediaType.MOVIE.value:
-                cursor.execute("""
-                    INSERT INTO movies (item_id, director, duration_minutes)
-                    VALUES (?, ?, ?)
-                """, (item_id, data.get('director'), data.get('duration_minutes')))
-            elif media_type == MediaType.TV_SERIES.value:
-                cursor.execute("""
-                    INSERT INTO tv_series (item_id, seasons, total_episodes)
-                    VALUES (?, ?, ?)
-                """, (item_id, data.get('seasons'), data.get('total_episodes')))
-            
-            return item_id
+            return cursor.lastrowid
     
-    def get_item(self, item_id: int) -> Book | Movie | TVSeries | None:
+    def get_item(self, item_id: int) -> MediaItem | None:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             
@@ -203,26 +139,7 @@ class DatabaseManager:
             if not row:
                 return None
             
-            result = dict(row)
-            media_type = result['media_type']
-            
-            if media_type == MediaType.BOOK.value:
-                cursor.execute("SELECT * FROM books WHERE item_id = ?", (item_id,))
-                extra = cursor.fetchone()
-                if extra:
-                    result.update(dict(extra))
-            elif media_type == MediaType.MOVIE.value:
-                cursor.execute("SELECT * FROM movies WHERE item_id = ?", (item_id,))
-                extra = cursor.fetchone()
-                if extra:
-                    result.update(dict(extra))
-            elif media_type == MediaType.TV_SERIES.value:
-                cursor.execute("SELECT * FROM tv_series WHERE item_id = ?", (item_id,))
-                extra = cursor.fetchone()
-                if extra:
-                    result.update(dict(extra))
-            
-            return self._db_row_to_item(result)
+            return self._db_row_to_item(dict(row))
     
     def update_item(self, item_id: int, item: MediaItem) -> bool:
         with self._get_connection() as conn:
@@ -233,12 +150,13 @@ class DatabaseManager:
             if not row:
                 return False
             
-            old_media_type = row['media_type']
             data = self._item_to_db_data(item)
             
             cursor.execute("""
                 UPDATE media_items 
-                SET title = ?, status = ?, rating = ?, release_date = ?, genres = ?, updated_at = CURRENT_TIMESTAMP
+                SET title = ?, status = ?, rating = ?, release_date = ?, genres = ?, 
+                    description = ?, authors = ?, video_path = ?, duration = ?,
+                    updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             """, (
                 data['title'],
@@ -246,29 +164,12 @@ class DatabaseManager:
                 data['rating'],
                 data['release_date'],
                 data['genres'],
+                data['description'],
+                data['authors'],
+                data['video_path'],
+                data['duration'],
                 item_id
             ))
-            
-            media_type = data['media_type']
-            
-            if media_type != old_media_type:
-                cursor.execute(f"DELETE FROM {old_media_type}s WHERE item_id = ?", (item_id,))
-            
-            if media_type == MediaType.BOOK.value:
-                cursor.execute("""
-                    INSERT OR REPLACE INTO books (item_id, author, pages)
-                    VALUES (?, ?, ?)
-                """, (item_id, data.get('author'), data.get('pages')))
-            elif media_type == MediaType.MOVIE.value:
-                cursor.execute("""
-                    INSERT OR REPLACE INTO movies (item_id, director, duration_minutes)
-                    VALUES (?, ?, ?)
-                """, (item_id, data.get('director'), data.get('duration_minutes')))
-            elif media_type == MediaType.TV_SERIES.value:
-                cursor.execute("""
-                    INSERT OR REPLACE INTO tv_series (item_id, seasons, total_episodes)
-                    VALUES (?, ?, ?)
-                """, (item_id, data.get('seasons'), data.get('total_episodes')))
             
             return True
     
@@ -296,7 +197,8 @@ class DatabaseManager:
                      status: Status = None,
                      media_type: MediaType = None,
                      min_rating: float = None,
-                     genre: str = None) -> list[MediaItem]:
+                     genre: str = None,
+                     author: str = None) -> list[MediaItem]:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             
@@ -323,6 +225,10 @@ class DatabaseManager:
                 conditions.append("genres LIKE ?")
                 params.append(f"%{genre}%")
             
+            if author:
+                conditions.append("authors LIKE ?")
+                params.append(f"%{author}%")
+            
             where_clause = " WHERE " + " AND ".join(conditions) if conditions else ""
             query = f"SELECT id FROM media_items{where_clause} ORDER BY rating DESC"
             
@@ -345,6 +251,9 @@ class DatabaseManager:
     def get_by_genre(self, genre: str) -> list[MediaItem]:
         return self.search_items(genre=genre)
     
+    def get_by_author(self, author: str) -> list[MediaItem]:
+        return self.search_items(author=author)
+    
     def get_top_rated(self, n: int, media_type: MediaType = None) -> list[MediaItem]:
         items = self.search_items(media_type=media_type) if media_type else self.get_all_items()
         if len(items) < n:
@@ -363,7 +272,7 @@ class DatabaseManager:
             """, (item_id, reminder_date.isoformat(), message))
             return cursor.lastrowid
     
-    def get_reminders(self, before_date: date = None) -> list[dict[str, list]]:
+    def get_reminders(self, before_date: date = None) -> list[dict]:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             query = """
@@ -392,7 +301,7 @@ class DatabaseManager:
             cursor.execute("UPDATE reminders SET is_done = 1 WHERE id = ?", (reminder_id,))
             return cursor.rowcount > 0
         
-    def get_stats(self) -> dict[str, list]:
+    def get_stats(self) -> dict:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             
@@ -416,11 +325,15 @@ class DatabaseManager:
             """)
             by_type = {MediaType(row['media_type']): row['count'] for row in cursor.fetchall()}
             
+            cursor.execute("SELECT SUM(duration) as total_duration FROM media_items")
+            total_duration = cursor.fetchone()['total_duration'] or 0
+            
             return {
                 'total': total,
                 'by_status': by_status,
                 'by_type': by_type,
-                'avg_rating': round(avg_rating, 2)
+                'avg_rating': round(avg_rating, 2),
+                'total_duration': total_duration
             }
         
     def __len__(self) -> int:

@@ -1,10 +1,9 @@
+# enums.py
 from enum import StrEnum, auto
 
 class MediaType(StrEnum):
     "The class contains all types of media"
-    MOVIE = auto()      
-    TV_SERIES = auto()  
-    BOOK = auto()       
+    VIDEO = auto()
 
 class Status(StrEnum):
     "The class contains all types of status"

@@ -3,8 +3,8 @@ import os
 from datetime import date
 from src.catalog import MediaCatalog
 from src.database import DatabaseManager
-from src.media import Book, Movie, TVSeries
-from src.enums import Status
+from src.media import MediaItem
+from src.enums import Status, MediaType
 from src.exceptions import NotFoundError, DuplicateError, ValidationError
 from src.interactions import describe_item, change_status, get_upcoming_releases
 from src.reminder import Reminder
@@ -55,9 +55,9 @@ class MediaTrackerApp:
         print("\n" + "=" * 50)
         print("           MediaTracker")
         print("=" * 50)
-        print("1. Add new item")
+        print("1. Add new video")
         print("2. Show all collection")
-        print("3. Search by title/genre/year")
+        print("3. Search by title/genre/year/author")
         print("4. Change item status")
         print("5. Show statistics")
         print("6. Show reminders")
@@ -68,17 +68,7 @@ class MediaTrackerApp:
         print(f"In collection: {len(self.catalog)} items")
     
     def _add_item(self) -> None:
-        print("\n--- Add new item ---")
-        
-        print("\nSelect type:")
-        print("1. Book")
-        print("2. Movie")
-        print("3. TV Series")
-        type_choice = input("Your choice: ").strip()
-        
-        if type_choice not in ["1", "2", "3"]:
-            print("Invalid choice")
-            return
+        print("\n--- Add new video ---")
         
         title = input("Title: ").strip()
         if not title:
@@ -99,8 +89,8 @@ class MediaTrackerApp:
             rating = 0.0
         
         print("\nSelect status:")
-        print("1. Watched/Read")
-        print("2. Watching/Reading")
+        print("1. Watched")
+        print("2. Watching")
         print("3. Planned")
         print("4. On Hold")
         status_choice = input("Your choice: ").strip()
@@ -115,26 +105,31 @@ class MediaTrackerApp:
         genres_input = input("Genres (comma separated): ").strip()
         genres = [g.strip() for g in genres_input.split(",") if g.strip()]
         
+        authors_input = input("Authors (comma separated): ").strip()
+        authors = [a.strip() for a in authors_input.split(",") if a.strip()]
+        
+        description = input("Description: ").strip()
+        
+        video_path = input("Video file path (or leave empty): ").strip()
+        
+        duration = input("Duration (minutes): ").strip()
         try:
-            if type_choice == "1":
-                pages = input("Number of pages: ").strip()
-                pages = int(pages) if pages else 0
-                item = Book(title, release_date, rating, status, genres, pages)
-                
-            elif type_choice == "2":
-                minutes = input("Duration (minutes): ").strip()
-                minutes = int(minutes) if minutes else 0
-                item = Movie(title, release_date, rating, status, genres, minutes)
-                
-            else:
-                seasons_input = input("Number of seasons: ").strip()
-                seasons_count = int(seasons_input) if seasons_input else 0
-                seasons = {}
-                for i in range(1, seasons_count + 1):
-                    episodes_input = input(f"  Season {i}, episodes count: ").strip()
-                    episodes_count = int(episodes_input) if episodes_input else 0
-                    seasons[i] = [45] * episodes_count
-                item = TVSeries(title, release_date, rating, status, genres, seasons)
+            duration = int(duration) if duration else 0
+        except ValueError:
+            duration = 0
+        
+        try:
+            item = MediaItem(
+                title=title,
+                release_date=release_date,
+                rating=rating,
+                status=status,
+                genres=genres,
+                description=description,
+                authors=authors,
+                video_path=video_path,
+                duration=duration
+            )
             
             item_id = self.catalog.add_item(item)
             self.db.add_item(item)
@@ -154,8 +149,8 @@ class MediaTrackerApp:
         
         print("\nFilter by status?")
         print("1. All")
-        print("2. Watched/Read")
-        print("3. Watching/Reading")
+        print("2. Watched")
+        print("3. Watching")
         print("4. Planned")
         print("5. On Hold")
         filter_choice = input("Your choice: ").strip()
@@ -184,8 +179,8 @@ class MediaTrackerApp:
     
     def _search_items(self) -> None:
         print("\n--- Search ---")
-        print("Enter search query (can include type, genre, year):")
-        print("Example: 'movie comedy 2020' or 'Lord of the Rings'")
+        print("Enter search query (can include genre, year, author):")
+        print("Example: 'comedy 2020' or 'author: Smith' or 'Lord of the Rings'")
         query = input("Query: ").strip()
         
         if not query:
@@ -227,8 +222,8 @@ class MediaTrackerApp:
             
             print(f"\nCurrent status: {item.status.value}")
             print("\nSelect new status:")
-            print("1. Watched/Read")
-            print("2. Watching/Reading")
+            print("1. Watched")
+            print("2. Watching")
             print("3. Planned")
             print("4. On Hold")
             
@@ -267,6 +262,7 @@ class MediaTrackerApp:
             print("\nGeneral statistics:")
             print(f"  Total items: {stats['total']}")
             print(f"  Average rating: {stats['avg_rating']}")
+            print(f"  Total duration: {stats['total_duration']} min")
             
             print("\nBy status:")
             for status, count in stats['by_status'].items():
