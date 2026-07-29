@@ -44,6 +44,11 @@ def load_catalog():
         items = db.get_all_items()
         for item in items:
             try:
+                # Добавляем в каталог с ID из БД
+                db_id = db.get_item_id_by_title(item.title)
+                if db_id:
+                    # Сохраняем ID в объекте
+                    item._db_id = db_id
                 catalog.add_item(item)
             except DuplicateError:
                 pass
@@ -170,7 +175,17 @@ def generate_thumbnail(filepath: Path, thumbnail_path: Path, time_pos: float = 1
         return False
 
 def item_to_dict(item: MediaItem) -> Dict[str, Any]:
-    item_id = id(item)
+    # Получаем ID из базы данных по названию
+    db_id = db.get_item_id_by_title(item.title)
+    if db_id:
+        item_id = db_id
+    elif hasattr(item, '_db_id') and item._db_id:
+        item_id = item._db_id
+    else:
+        # Если ID нет, генерируем временный
+        import hashlib
+        item_id = int(hashlib.md5(item.title.lower().encode()).hexdigest()[:8], 16)
+    
     thumbnail_path = THUMBNAIL_FOLDER / f"{item_id}.jpg"
     has_thumbnail = thumbnail_path.exists()
     
@@ -301,8 +316,13 @@ def add_item():
             duration=duration
         )
         
+        # Добавляем в БД сначала, чтобы получить ID
+        db_id = db.add_item(item)
+        if db_id:
+            item._db_id = db_id
+        
+        # Затем добавляем в каталог
         item_id = catalog.add_item(item)
-        db.add_item(item)
         
         thumbnail_generated = False
         if video_path:
@@ -310,7 +330,7 @@ def add_item():
                 filename = video_path.split('/')[-1]
                 filepath = UPLOAD_FOLDER / filename
                 if filepath.exists():
-                    thumbnail_path = THUMBNAIL_FOLDER / f"{item_id}.jpg"
+                    thumbnail_path = THUMBNAIL_FOLDER / f"{db_id or item_id}.jpg"
                     thumbnail_generated = generate_thumbnail(filepath, thumbnail_path, time_pos=1.0)
             except Exception:
                 pass
@@ -337,7 +357,14 @@ def update_item(item_id: int):
         if not data:
             return jsonify({'success': False, 'error': 'No data provided'}), 400
         
-        item = catalog.get_item(item_id)
+        # Ищем item по ID из БД
+        item = None
+        for cat_item in catalog:
+            db_id = db.get_item_id_by_title(cat_item.title)
+            if db_id == item_id:
+                item = cat_item
+                break
+        
         if not item:
             return jsonify({'success': False, 'error': 'Item not found'}), 404
         
@@ -400,7 +427,23 @@ def update_item(item_id: int):
 @app.route('/api/items/<int:item_id>', methods=['DELETE'])
 def delete_item(item_id: int):
     try:
-        catalog.remove_item(item_id)
+        # Ищем item по ID из БД
+        item = None
+        cat_id = None
+        for cat_item_id, cat_item in catalog._items.items():
+            db_id = db.get_item_id_by_title(cat_item.title)
+            if db_id == item_id:
+                item = cat_item
+                cat_id = cat_item_id
+                break
+        
+        if not item or cat_id is None:
+            return jsonify({'success': False, 'error': 'Item not found'}), 404
+        
+        # Удаляем из каталога
+        catalog.remove_item(cat_id)
+        
+        # Удаляем из БД
         db.delete_item(item_id)
         
         thumbnail_path = THUMBNAIL_FOLDER / f"{item_id}.jpg"

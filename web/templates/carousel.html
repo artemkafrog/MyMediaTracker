@@ -5,9 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>MediaTracker - Home</title>
     <script src="https://cdn.jsdelivr.net/npm/vue@2.7.14/dist/vue.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="stylesheet" href="/static/css/carousel.css">
-</head>
+    </head>
 <body>
     <div id="app" v-bind:class="{ 'light-theme': !darkMode }">
         <header class="header">
@@ -143,7 +144,7 @@
                             <div class="slide-actions">
                                 <button class="action-btn" v-on:click.stop="toggleFavorite(item)" 
                                         v-bind:class="{ favorite: item.favorite }">
-                                    Favorite
+                                    ♡
                                 </button>
                             </div>
                         </div>
@@ -170,18 +171,19 @@
             </div>
             
             <div class="indicators" v-if="filteredItems.length > 1">
-                <span v-for="(item, index) in filteredItems" 
-                      v-bind:key="index"
-                      class="dot"
-                      v-bind:class="{ active: index === currentIndex }"
-                      v-on:click="goTo(index)"></span>
+                <span 
+                    v-for="(item, index) in filteredItems" 
+                    v-bind:key="index"
+                    class="dot"
+                    v-bind:class="{ active: index === (currentIndex % filteredItems.length) }"
+                    v-on:click="goTo(index)"
+                ></span>
             </div>
             
             <div class="carousel-stats">
                 <span>Total: {{ filteredItems.length }} videos</span>
-                <span v-if="watchedCount > 0">| Watched: {{ watchedCount }}</span>
-                <span v-if="favoritesCount > 0">| Favorites: {{ favoritesCount }}</span>
-                <span class="auto-play-indicator" v-if="autoPlayEnabled">Autoplay</span>
+                <span v-if="watchedCount > 0">Watched: {{ watchedCount }}</span>
+                <span v-if="favoritesCount > 0">Favorites: {{ favoritesCount }}</span>
             </div>
         </main>
         

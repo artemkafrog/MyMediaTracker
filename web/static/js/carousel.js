@@ -97,7 +97,7 @@ const app = new Vue({
         },
         
         activeIndex() {
-            return this.currentIndex;
+            return this.currentIndex % this.filteredItems.length;
         },
         
         displayItems() {
@@ -115,7 +115,9 @@ const app = new Vue({
             const gap = this.getGap();
             const totalWidth = cardWidth + gap;
             
-            const offset = (containerWidth / 2) - (cardWidth / 2) - (this.currentIndex * totalWidth);
+            // Используем нормализованный индекс для бесконечной прокрутки
+            const normalizedIndex = ((this.currentIndex % this.filteredItems.length) + this.filteredItems.length) % this.filteredItems.length;
+            const offset = (containerWidth / 2) - (cardWidth / 2) - (normalizedIndex * totalWidth);
             
             let dragOffset = 0;
             if (this.isDragging) {
@@ -126,7 +128,7 @@ const app = new Vue({
             
             return {
                 transform: 'translateX(' + finalOffset + 'px)',
-                transition: this.isDragging ? 'none' : 'transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1)'
+                transition: this.isDragging ? 'none' : 'transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
             };
         },
         
@@ -216,14 +218,16 @@ const app = new Vue({
         
         getSlideStyle(index) {
             const totalItems = this.filteredItems.length;
-            let diff = index - this.currentIndex;
+            if (totalItems === 0) return {};
             
-            if (Math.abs(diff) > totalItems / 2) {
-                if (diff > 0) {
-                    diff = diff - totalItems;
-                } else {
-                    diff = diff + totalItems;
-                }
+            // Вычисляем циклическую разницу для бесконечной прокрутки
+            let diff = index - (this.currentIndex % totalItems);
+            
+            // Нормализуем разницу для циклического перехода
+            if (diff > totalItems / 2) {
+                diff = diff - totalItems;
+            } else if (diff < -totalItems / 2) {
+                diff = diff + totalItems;
             }
             
             const absDiff = Math.abs(diff);
@@ -240,13 +244,13 @@ const app = new Vue({
                 const dir = diff < 0 ? -1 : 1;
                 return {
                     transform: 'scale(0.85) translateX(' + (dir * 10) + 'px)',
-                    opacity: 0.6,
+                    opacity: 0.4,
                     zIndex: 5
                 };
             }
             
             const scale = Math.max(0.7, 0.85 - (absDiff - 1) * 0.05);
-            const opacity = Math.max(0.2, 0.6 - (absDiff - 1) * 0.1);
+            const opacity = Math.max(0.15, 0.4 - (absDiff - 1) * 0.08);
             
             return {
                 transform: 'scale(' + scale + ')',
@@ -391,9 +395,11 @@ const app = new Vue({
             }
         },
         
+        // ===== БЕСКОНЕЧНАЯ ЗАЦИКЛЕННАЯ КАРУСЕЛЬ =====
         nextVideo() {
             if (this.filteredItems.length === 0) return;
-            this.currentIndex = (this.currentIndex + 1) % this.filteredItems.length;
+            // Бесконечная прокрутка вправо
+            this.currentIndex = this.currentIndex + 1;
             this.updateStatus();
             if (this.autoPlayEnabled) {
                 this.restartAutoPlay();
@@ -402,7 +408,8 @@ const app = new Vue({
         
         prevVideo() {
             if (this.filteredItems.length === 0) return;
-            this.currentIndex = (this.currentIndex - 1 + this.filteredItems.length) % this.filteredItems.length;
+            // Бесконечная прокрутка влево
+            this.currentIndex = this.currentIndex - 1;
             this.updateStatus();
             if (this.autoPlayEnabled) {
                 this.restartAutoPlay();
@@ -410,8 +417,20 @@ const app = new Vue({
         },
         
         goTo(index) {
-            if (index < 0 || index >= this.filteredItems.length) return;
-            this.currentIndex = index;
+            if (this.filteredItems.length === 0) return;
+            // Нормализуем индекс для бесконечной прокрутки
+            const normalizedIndex = ((index % this.filteredItems.length) + this.filteredItems.length) % this.filteredItems.length;
+            const currentNormalized = ((this.currentIndex % this.filteredItems.length) + this.filteredItems.length) % this.filteredItems.length;
+            
+            // Вычисляем кратчайший путь
+            let diff = normalizedIndex - currentNormalized;
+            if (diff > this.filteredItems.length / 2) {
+                diff = diff - this.filteredItems.length;
+            } else if (diff < -this.filteredItems.length / 2) {
+                diff = diff + this.filteredItems.length;
+            }
+            
+            this.currentIndex = this.currentIndex + diff;
             this.updateStatus();
             if (this.autoPlayEnabled) {
                 this.restartAutoPlay();
@@ -429,7 +448,8 @@ const app = new Vue({
         },
         
         updateStatus() {
-            const item = this.filteredItems[this.currentIndex];
+            const normalizedIndex = ((this.currentIndex % this.filteredItems.length) + this.filteredItems.length) % this.filteredItems.length;
+            const item = this.filteredItems[normalizedIndex];
             if (item) {
                 this.statusMessage = 'Now playing: ' + item.title;
             }
@@ -864,7 +884,8 @@ const app = new Vue({
                 if (e.key === 'Enter') {
                     if (this.filteredItems.length > 0 && !this.selectedItem && !this.showPlayer) {
                         e.preventDefault();
-                        const currentItem = this.filteredItems[this.currentIndex];
+                        const normalizedIndex = ((this.currentIndex % this.filteredItems.length) + this.filteredItems.length) % this.filteredItems.length;
+                        const currentItem = this.filteredItems[normalizedIndex];
                         if (currentItem) {
                             this.openVideo(currentItem);
                         }
