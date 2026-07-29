@@ -16,6 +16,7 @@ class MediaItem(ABC):
         self._authors = authors.copy() if authors else []
         self._video_path = video_path
         self._duration = duration
+        self._db_id = None  # ID из базы данных
 
     @property
     def rating(self):

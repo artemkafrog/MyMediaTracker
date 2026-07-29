@@ -87,7 +87,7 @@ class DatabaseManager:
         genres = json.loads(row['genres']) if row['genres'] else []
         authors = json.loads(row['authors']) if row['authors'] else []
         
-        return MediaItem(
+        item = MediaItem(
             title=row['title'],
             release_date=release_date,
             rating=row['rating'],
@@ -98,6 +98,9 @@ class DatabaseManager:
             video_path=row.get('video_path', ''),
             duration=row.get('duration', 0)
         )
+        # Сохраняем ID из БД
+        item._db_id = row['id']
+        return item
         
     def add_item(self, item: MediaItem) -> int:
         with self._get_connection() as conn:
@@ -107,8 +110,9 @@ class DatabaseManager:
                 "SELECT id FROM media_items WHERE title = ? AND media_type = ?",
                 (item.title, item.get_media_type().value)
             )
-            if cursor.fetchone():
-                raise DuplicateError(f"Item '{item.title}' already exists")
+            existing = cursor.fetchone()
+            if existing:
+                return existing['id']
             
             data = self._item_to_db_data(item)
             
@@ -140,6 +144,22 @@ class DatabaseManager:
                 return None
             
             return self._db_row_to_item(dict(row))
+    
+    def get_item_id_by_title(self, title: str) -> int | None:
+        """Get database ID by title"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM media_items WHERE title = ?", (title,))
+            row = cursor.fetchone()
+            return row['id'] if row else None
+    
+    def get_item_by_title(self, title: str) -> dict | None:
+        """Get item by title"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT * FROM media_items WHERE title = ?", (title,))
+            row = cursor.fetchone()
+            return dict(row) if row else None
     
     def update_item(self, item_id: int, item: MediaItem) -> bool:
         with self._get_connection() as conn:
@@ -177,6 +197,13 @@ class DatabaseManager:
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("DELETE FROM media_items WHERE id = ?", (item_id,))
+            return cursor.rowcount > 0
+    
+    def delete_item_by_title(self, title: str) -> bool:
+        """Delete item by title"""
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("DELETE FROM media_items WHERE title = ?", (title,))
             return cursor.rowcount > 0
     
     def get_all_items(self) -> list[MediaItem]:

@@ -39,7 +39,16 @@ class MediaCatalog:
         if duplicates:
             raise DuplicateError("This item already exists.")
 
-        item_id = randbits(32)
+        # Используем ID из БД, если он есть
+        if hasattr(item, '_db_id') and item._db_id:
+            item_id = item._db_id
+        else:
+            # Генерируем стабильный ID на основе заголовка
+            import hashlib
+            item_id = int(hashlib.md5(item.title.lower().encode()).hexdigest()[:8], 16)
+            # Если есть коллизия, добавляем случайное число
+            while item_id in self._items:
+                item_id = item_id ^ (int(hashlib.md5(str(len(self._items)).encode()).hexdigest()[:4], 16) or 1)
 
         self._items[item_id] = item
         self._by_status[item.status].add(item_id)
