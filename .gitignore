@@ -16,3 +16,7 @@ backups/
 
 # exports
 exports/*.csv
+
+# videos
+thumbnails/
+uploads/
