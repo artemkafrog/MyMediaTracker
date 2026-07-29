@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediaTracker - Collection</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.7.14/dist/vue.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div id="app" v-bind:class="{ 'light-theme': !darkMode }">
+        <header class="header">
+            <div class="header-left">
+                <a href="/" class="app-title-link">
+                    <h1 class="app-title">MediaTracker</h1>
+                </a>
+            </div>
+            
+            <div class="header-center">
+                <a href="/" class="glass-btn">
+                    <span class="icon">Home</span>
+                </a>
+                <a href="/collection" class="glass-btn active">
+                    <span class="icon">Collection</span>
+                </a>
+                <button class="glass-btn" v-on:click="openAddModal">
+                    <span class="icon">Add</span>
+                </button>
+                <button class="glass-btn" v-on:click="refreshItems">
+                    <span class="icon">Refresh</span>
+                </button>
+                <button class="glass-btn" v-bind:class="{ active: viewMode === 'grid' }" v-on:click="viewMode = 'grid'">
+                    <span class="icon">Grid</span>
+                </button>
+                <button class="glass-btn" v-bind:class="{ active: viewMode === 'list' }" v-on:click="viewMode = 'list'">
+                    <span class="icon">List</span>
+                </button>
+                <button class="glass-btn" v-on:click="openStatsModal">
+                    <span class="icon">Stats</span>
+                </button>
+            </div>
+            
+            <div class="header-right">
+                <div class="search-container">
+                    <input 
+                        type="text" 
+                        v-model="searchQuery" 
+                        v-on:keyup.enter="searchItems"
+                        placeholder="Search..." 
+                        class="glass-input search-input"
+                    >
+                    <button class="glass-btn search-btn" v-on:click="searchItems">Search</button>
+                </div>
+                <button class="glass-btn theme-toggle" v-on:click="toggleTheme">
+                    <span v-if="darkMode">Light</span>
+                    <span v-else>Dark</span>
+                </button>
+            </div>
+        </header>
+        
+        <div class="divider"></div>
+        
+        <div class="filter-bar">
+            <button 
+                v-for="filter in filters" 
+                v-bind:key="filter.value"
+                class="filter-btn"
+                v-bind:class="{ active: activeFilter === filter.value }"
+                v-on:click="applyFilter(filter.value)"
+            >
+                <span v-text="filter.label"></span>
+            </button>
+        </div>
+        
+        <main class="main-content">
+            <div v-if="loading" class="loading">
+                <div class="loader"></div>
+                <p>Loading...</p>
+            </div>
+            
+            <div v-else-if="viewMode === 'grid'" class="grid-view">
+                <div 
+                    v-for="(item, index) in filteredItems" 
+                    v-bind:key="item.id"
+                    class="video-card glass-card"
+                    v-bind:style="{ animationDelay: (index * 0.05) + 's' }"
+                    v-on:click="openDetail(item)"
+                >
+                    <div class="card-preview">
+                        <img 
+                            v-if="item.has_thumbnail" 
+                            :src="item.thumbnail_url" 
+                            :alt="item.title"
+                            class="card-thumbnail"
+                            @error="item.has_thumbnail = false"
+                        >
+                        <span v-else class="preview-icon">Video</span>
+                        <div class="card-duration" v-text="formatDuration(item.duration)"></div>
+                    </div>
+                    <div class="card-content">
+                        <div class="card-title" v-text="item.title"></div>
+                        <div class="card-info">
+                            <span class="card-rating">Rating: <span v-text="item.rating.toFixed(1)"></span>/10</span>
+                            <span class="card-year" v-text="item.year || 'N/A'"></span>
+                        </div>
+                        <div class="card-genres" v-text="item.genres.slice(0, 2).join(', ') + (item.genres.length > 2 ? '...' : '')"></div>
+                        <span class="status-badge" v-bind:class="item.status" v-text="getStatusLabel(item.status)"></span>
+                        <div v-if="item.status === 'watching' && getWatchProgress(item) > 0" class="view-timer">
+                            <span class="timer-icon">Progress</span>
+                            <span>Watched: {{ getWatchProgress(item) }}%</span>
+                            <div class="timer-progress">
+                                <div class="progress-fill" :style="{ width: getWatchProgress(item) + '%' }"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div v-if="filteredItems.length === 0" class="empty-state">
+                    <p>Nothing found</p>
+                </div>
+            </div>
+            
+            <div v-else class="list-view">
+                <div class="list-header">
+                    <span class="col-title">Title</span>
+                    <span class="col-rating">Rating</span>
+                    <span class="col-duration">Duration</span>
+                    <span class="col-year">Year</span>
+                    <span class="col-status">Status</span>
+                    <span class="col-progress">Progress</span>
+                    <span class="col-actions">Actions</span>
+                </div>
+                <div 
+                    v-for="(item, index) in filteredItems" 
+                    v-bind:key="item.id"
+                    class="list-row"
+                    v-bind:class="{ even: index % 2 === 0 }"
+                    v-on:click="openDetail(item)"
+                >
+                    <span class="col-title" v-text="item.title"></span>
+                    <span class="col-rating" v-text="item.rating.toFixed(1)"></span>
+                    <span class="col-duration" v-text="formatDuration(item.duration)"></span>
+                    <span class="col-year" v-text="item.year || 'N/A'"></span>
+                    <span class="col-status">
+                        <span class="status-badge" v-bind:class="item.status" v-text="getStatusLabel(item.status)"></span>
+                    </span>
+                    <span class="col-progress">
+                        <div v-if="getWatchProgress(item) > 0" class="timer-progress" style="width: 60px;">
+                            <div class="progress-fill" :style="{ width: getWatchProgress(item) + '%' }"></div>
+                        </div>
+                        <span v-else style="color: rgba(255,255,255,0.2); font-size: 11px;">-</span>
+                    </span>
+                    <span class="col-actions">
+                        <button class="icon-btn" v-on:click.stop="openDetail(item)">View</button>
+                        <button class="icon-btn" v-on:click.stop="deleteItem(item)">Delete</button>
+                    </span>
+                </div>
+                
+                <div v-if="filteredItems.length === 0" class="empty-state">
+                    <p>Nothing found</p>
+                </div>
+            </div>
+        </main>
+        
+        <footer class="status-bar">
+            <span class="status-message" v-text="statusMessage"></span>
+            <span class="status-total">Total: <span v-text="filteredItems.length"></span></span>
+        </footer>
+        
+        <div v-if="showAddModal" class="modal-overlay" v-on:click.self="closeAddModal">
+            <div class="modal glass-card">
+                <h2 class="modal-title">{{ isEditing ? 'EDIT VIDEO' : 'ADD VIDEO' }}</h2>
+                
+                <div class="form-group">
+                    <label>Title *</label>
+                    <input v-model="newItem.title" class="glass-input" placeholder="Enter title">
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Year</label>
+                        <input v-model.number="newItem.year" type="number" class="glass-input" placeholder="2024">
+                    </div>
+                    <div class="form-group">
+                        <label>Rating (0-10)</label>
+                        <input v-model.number="newItem.rating" type="number" step="0.1" class="glass-input" placeholder="8.5">
+                    </div>
+                    <div class="form-group">
+                        <label>Duration (min)</label>
+                        <input v-model.number="newItem.duration" type="number" class="glass-input" placeholder="120">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Genres (comma separated)</label>
+                    <input v-model="newItem.genres" class="glass-input" placeholder="Comedy, Drama, Action">
+                </div>
+                
+                <div class="form-group">
+                    <label>Authors (comma separated)</label>
+                    <input v-model="newItem.authors" class="glass-input" placeholder="Director, Writer">
+                </div>
+                
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea v-model="newItem.description" class="glass-textarea" placeholder="Brief description..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>Video Path</label>
+                    <div class="video-path-group">
+                        <input v-model="newItem.video_path" class="glass-input" placeholder="path/to/video.mp4">
+                        <button class="glass-btn" v-on:click="browseVideo">Upload</button>
+                    </div>
+                    <div style="margin-top: 8px; display: flex; align-items: center; gap: 12px; color: rgba(255,255,255,0.3); font-size: 12px;">
+                        <span>or</span>
+                    </div>
+                    <div class="video-path-group" style="margin-top: 8px;">
+                        <input v-model="newItem.video_url" class="glass-input" placeholder="https://example.com/video.mp4">
+                        <span style="color: rgba(255,255,255,0.3); font-size: 12px; white-space: nowrap;">Link</span>
+                    </div>
+                    <input type="file" ref="fileInput" v-on:change="handleFileUpload" accept=".mp4,.avi,.mkv,.mov,.webm" style="display:none">
+                </div>
+                
+                <div class="form-group">
+                    <label>Status</label>
+                    <div class="status-radio-group">
+                        <label v-for="status in statusOptions" v-bind:key="status.value" class="status-radio">
+                            <input type="radio" v-model="newItem.status" v-bind:value="status.value">
+                            <span class="status-badge" v-bind:class="status.value" v-text="status.label"></span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="modal-actions">
+                    <button class="glass-btn" v-on:click="closeAddModal">Cancel</button>
+                    <button class="glass-btn primary" v-on:click="saveItem">{{ isEditing ? 'Save' : 'Add' }}</button>
+                </div>
+            </div>
+        </div>
+        
+        <div v-if="selectedItem" class="modal-overlay" v-on:click.self="selectedItem = null">
+            <div class="modal modal-detail glass-card">
+                <h2 class="modal-title" style="color: #FF6C00;" v-text="selectedItem.title"></h2>
+                
+                <div class="detail-grid">
+                    <div class="detail-left">
+                        <div><strong>Rating:</strong> <span v-text="selectedItem.rating.toFixed(1)"></span>/10</div>
+                        <div><strong>Year:</strong> <span v-text="selectedItem.year || 'N/A'"></span></div>
+                        <div><strong>Duration:</strong> <span v-text="formatDuration(selectedItem.duration)"></span></div>
+                        <div><strong>Status:</strong> <span class="status-badge" v-bind:class="selectedItem.status" v-text="getStatusLabel(selectedItem.status)"></span></div>
+                        <div v-if="getWatchProgress(selectedItem) > 0">
+                            <strong>Progress:</strong> <span v-text="getWatchProgress(selectedItem) + '%'"></span>
+                            <div class="timer-progress" style="width: 100%; margin-top: 4px;">
+                                <div class="progress-fill" :style="{ width: getWatchProgress(selectedItem) + '%' }"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="detail-right">
+                        <div><strong>Genres:</strong> <span v-text="selectedItem.genres.join(', ') || 'None'"></span></div>
+                        <div><strong>Authors:</strong> <span v-text="selectedItem.authors.join(', ') || 'None'"></span></div>
+                    </div>
+                </div>
+                
+                <div v-if="selectedItem.description" class="detail-description">
+                    <strong>Description:</strong>
+                    <p v-text="selectedItem.description"></p>
+                </div>
+                
+                <div class="detail-actions">
+                    <button v-if="selectedItem.video_path" class="glass-btn primary" v-on:click="playVideo(selectedItem)">
+                        Play
+                    </button>
+                    <button class="glass-btn" v-on:click="editItem">Edit</button>
+                    <button class="glass-btn" v-on:click="toggleFavorite(selectedItem)">
+                        {{ selectedItem.favorite ? 'Remove from favorites' : 'Add to favorites' }}
+                    </button>
+                    <button class="glass-btn danger" v-on:click="deleteItem(selectedItem)">Delete</button>
+                    <button class="glass-btn" v-on:click="selectedItem = null">Close</button>
+                </div>
+            </div>
+        </div>
+        
+        <div v-if="showStatsModal" class="modal-overlay" v-on:click.self="closeStatsModal">
+            <div class="modal modal-stats glass-card">
+                <h2 class="modal-title">STATISTICS</h2>
+                
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-value" v-text="stats.total"></div>
+                        <div class="stat-label">Total items</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" v-text="stats.avg_rating + '/10'"></div>
+                        <div class="stat-label">Average rating</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" v-text="formatDuration(stats.total_duration)"></div>
+                        <div class="stat-label">Total duration</div>
+                    </div>
+                </div>
+                
+                <div class="stats-details">
+                    <div class="stats-section">
+                        <h3>By status</h3>
+                        <div v-for="(count, status) in stats.by_status" v-bind:key="status" class="stat-row">
+                            <span class="status-badge" v-bind:class="status" v-text="getStatusLabel(status)"></span>
+                            <span v-text="count"></span>
+                        </div>
+                    </div>
+                    
+                    <div class="stats-section">
+                        <h3>By type</h3>
+                        <div v-for="(count, type) in stats.by_type" v-bind:key="type" class="stat-row">
+                            <span v-text="type"></span>
+                            <span v-text="count"></span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="modal-actions">
+                    <button class="glass-btn" v-on:click="closeStatsModal">Close</button>
+                </div>
+            </div>
+        </div>
+        
+        <div v-if="showPlayer" class="modal-overlay" v-on:click.self="closePlayer">
+            <div class="modal modal-player glass-card" :style="playerModalStyle">
+                <h2 class="modal-title" v-text="currentVideo.title"></h2>
+                <div class="player-controls-top">
+                    <div class="player-size-controls">
+                        <div class="size-control-group">
+                            <span class="size-label">Width</span>
+                            <button class="glass-btn size-btn" @click="changePlayerSize(-10)">-</button>
+                            <span class="size-indicator">{{ playerWidth }}%</span>
+                            <button class="glass-btn size-btn" @click="changePlayerSize(10)">+</button>
+                        </div>
+                        <div class="size-control-group">
+                            <span class="size-label">Height</span>
+                            <button class="glass-btn size-btn" @click="changePlayerHeight(-10)">-</button>
+                            <span class="size-indicator">{{ playerHeight }}%</span>
+                            <button class="glass-btn size-btn" @click="changePlayerHeight(10)">+</button>
+                        </div>
+                    </div>
+                    <button class="glass-btn fullscreen-btn" @click="toggleFullscreen">
+                        {{ isFullscreen ? 'Exit Fullscreen' : 'Fullscreen' }}
+                    </button>
+                </div>
+                <div class="player-container" :style="videoContainerStyle">
+                    <video 
+                        ref="videoPlayer"
+                        controls 
+                        autoplay
+                        class="video-player"
+                        v-on:timeupdate="updateProgress"
+                        v-on:ended="onVideoEnded"
+                        v-if="!currentVideo.isUrl"
+                    >
+                        <source v-bind:src="currentVideo.video_path" v-bind:type="getVideoType(currentVideo.video_path)">
+                        Your browser does not support video.
+                    </video>
+                    <div v-else class="video-iframe-container">
+                        <iframe 
+                            :src="currentVideo.video_path"
+                            frameborder="0"
+                            allowfullscreen
+                            allow="autoplay; encrypted-media"
+                            class="video-iframe"
+                        ></iframe>
+                    </div>
+                </div>
+                <div class="player-controls">
+                    <span class="player-time" v-text="currentTime"></span>
+                    <span class="player-duration" v-text="totalDuration"></span>
+                </div>
+                <div class="modal-actions">
+                    <button class="glass-btn" v-on:click="closePlayer">Close</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="toast-container">
+            <div 
+                v-for="toast in toasts" 
+                v-bind:key="toast.id"
+                class="toast"
+                v-bind:class="toast.type"
+                v-text="toast.message"
+            ></div>
+        </div>
+    </div>
+    
+    <script src="/static/js/app.js"></script>
+</body>
+</html>

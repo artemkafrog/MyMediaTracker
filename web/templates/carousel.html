@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>MediaTracker - Home</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.7.14/dist/vue.js"></script>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/carousel.css">
+</head>
+<body>
+    <div id="app" v-bind:class="{ 'light-theme': !darkMode }">
+        <header class="header">
+            <div class="header-left">
+                <a href="/" class="app-title-link">
+                    <h1 class="app-title">MediaTracker</h1>
+                </a>
+            </div>
+            
+            <div class="header-center">
+                <a href="/" class="glass-btn active">
+                    <span class="icon">Home</span>
+                </a>
+                <a href="/collection" class="glass-btn">
+                    <span class="icon">Collection</span>
+                </a>
+                <button class="glass-btn" v-on:click="openAddModal">
+                    <span class="icon">Add</span>
+                </button>
+            </div>
+            
+            <div class="header-right">
+                <div class="search-container">
+                    <input 
+                        type="text" 
+                        v-model="searchQuery" 
+                        v-on:keyup.enter="searchItems"
+                        placeholder="Search..." 
+                        class="glass-input search-input"
+                    >
+                    <button class="glass-btn search-btn" v-on:click="searchItems">Search</button>
+                </div>
+                <button class="glass-btn theme-toggle" v-on:click="toggleTheme">
+                    <span v-if="darkMode">Light</span>
+                    <span v-else>Dark</span>
+                </button>
+            </div>
+        </header>
+        
+        <div class="divider"></div>
+        
+        <div class="filter-bar carousel-filters">
+            <button 
+                v-for="filter in filters" 
+                v-bind:key="filter.value"
+                class="filter-btn"
+                v-bind:class="{ active: activeFilter === filter.value }"
+                v-on:click="applyFilter(filter.value)"
+            >
+                <span v-text="filter.label"></span>
+            </button>
+            <button class="filter-btn random-btn" v-on:click="randomVideo">
+                <span>Random</span>
+            </button>
+        </div>
+        
+        <main class="carousel-main">
+            <div v-if="loading" class="loading">
+                <div class="loader"></div>
+                <p>Loading videos...</p>
+            </div>
+            
+            <div v-else-if="filteredItems.length === 0" class="empty-carousel">
+                <div class="empty-icon">Video</div>
+                <h2>No videos in collection</h2>
+                <p>Add your first video to start watching</p>
+                <button class="glass-btn primary" v-on:click="openAddModal">Add Video</button>
+            </div>
+            
+            <div class="carousel-container" 
+                ref="carouselContainer"
+                style="position: relative; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; padding: 0; margin: 0;"
+                v-on:mousedown="startDrag"
+                v-on:mousemove="onDrag"
+                v-on:mouseup="endDrag"
+                v-on:mouseleave="endDrag"
+                v-on:touchstart="startTouch"
+                v-on:touchmove="onTouch"
+                v-on:touchend="endTouch">
+                
+                <div class="carousel-wrapper">
+                    <div class="carousel-track" 
+                         v-bind:style="trackStyle">
+                        
+                        <div v-for="(item, index) in displayItems" 
+                             v-bind:key="item.id"
+                             class="video-slide"
+                             v-bind:class="{
+                                 active: index === activeIndex,
+                                 prev: index === activeIndex - 1,
+                                 next: index === activeIndex + 1
+                             }"
+                             v-bind:style="getSlideStyle(index)"
+                             v-on:click="openVideo(item)">
+                            
+                            <div class="slide-preview">
+                                <img 
+                                    v-if="item.has_thumbnail" 
+                                    :src="item.thumbnail_url" 
+                                    :alt="item.title"
+                                    class="slide-thumbnail"
+                                    @error="item.has_thumbnail = false"
+                                >
+                                <span v-else class="preview-icon">Video</span>
+                                <span class="slide-duration">{{ formatDuration(item.duration) }}</span>
+                            </div>
+                            
+                            <div class="slide-content">
+                                <div class="slide-title">{{ item.title }}</div>
+                                <div class="slide-info">
+                                    <span class="slide-rating">Rating: {{ item.rating.toFixed(1) }}</span>
+                                    <span class="slide-year">{{ item.year || 'N/A' }}</span>
+                                </div>
+                                <div class="slide-genres">
+                                    {{ item.genres.slice(0, 2).join(', ') }}
+                                    <span v-if="item.genres.length > 2">...</span>
+                                </div>
+                                <span class="status-badge" v-bind:class="item.status">
+                                    {{ getStatusLabel(item.status) }}
+                                </span>
+                                
+                                <div v-if="item.status === 'watching' && getWatchProgress(item) > 0" 
+                                     class="view-timer">
+                                    <span class="timer-icon">Progress</span>
+                                    <span>Watched: {{ getWatchProgress(item) }}%</span>
+                                    <div class="timer-progress">
+                                        <div class="progress-fill" 
+                                             :style="{ width: getWatchProgress(item) + '%' }"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="slide-actions">
+                                <button class="action-btn" v-on:click.stop="toggleFavorite(item)" 
+                                        v-bind:class="{ favorite: item.favorite }">
+                                    Favorite
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="continue-watching" v-if="recentlyWatched.length > 0">
+                <div class="section-title">Continue Watching</div>
+                <div class="continue-list">
+                    <div v-for="item in recentlyWatched.slice(0, 4)" 
+                         :key="item.id"
+                         class="continue-item"
+                         @click="openVideo(item)">
+                        <div class="continue-preview">Video</div>
+                        <div class="continue-info">
+                            <span class="continue-title">{{ item.title }}</span>
+                            <span class="continue-progress">
+                                Watched: <span class="progress-text">{{ getWatchProgress(item) }}%</span>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="indicators" v-if="filteredItems.length > 1">
+                <span v-for="(item, index) in filteredItems" 
+                      v-bind:key="index"
+                      class="dot"
+                      v-bind:class="{ active: index === currentIndex }"
+                      v-on:click="goTo(index)"></span>
+            </div>
+            
+            <div class="carousel-stats">
+                <span>Total: {{ filteredItems.length }} videos</span>
+                <span v-if="watchedCount > 0">| Watched: {{ watchedCount }}</span>
+                <span v-if="favoritesCount > 0">| Favorites: {{ favoritesCount }}</span>
+                <span class="auto-play-indicator" v-if="autoPlayEnabled">Autoplay</span>
+            </div>
+        </main>
+        
+        <footer class="status-bar">
+            <span class="status-message" v-text="statusMessage"></span>
+            <span class="status-total">Total: {{ filteredItems.length }}</span>
+        </footer>
+        
+        <div v-if="showAddModal" class="modal-overlay" v-on:click.self="closeAddModal">
+            <div class="modal glass-card">
+                <h2 class="modal-title">ADD VIDEO</h2>
+                
+                <div class="form-group">
+                    <label>Title *</label>
+                    <input v-model="newItem.title" class="glass-input" placeholder="Enter title">
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Year</label>
+                        <input v-model.number="newItem.year" type="number" class="glass-input" placeholder="2024">
+                    </div>
+                    <div class="form-group">
+                        <label>Rating (0-10)</label>
+                        <input v-model.number="newItem.rating" type="number" step="0.1" class="glass-input" placeholder="8.5">
+                    </div>
+                    <div class="form-group">
+                        <label>Duration (min)</label>
+                        <input v-model.number="newItem.duration" type="number" class="glass-input" placeholder="120">
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Genres (comma separated)</label>
+                    <input v-model="newItem.genres" class="glass-input" placeholder="Comedy, Drama, Action">
+                </div>
+                
+                <div class="form-group">
+                    <label>Authors (comma separated)</label>
+                    <input v-model="newItem.authors" class="glass-input" placeholder="Director, Writer">
+                </div>
+                
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea v-model="newItem.description" class="glass-textarea" placeholder="Brief description..."></textarea>
+                </div>
+                
+                <div class="form-group">
+                    <label>Video Path</label>
+                    <div class="video-path-group">
+                        <input v-model="newItem.video_path" class="glass-input" placeholder="path/to/video.mp4">
+                        <button class="glass-btn" v-on:click="browseVideo">Upload</button>
+                    </div>
+                    <div style="margin-top: 8px; display: flex; align-items: center; gap: 12px; color: rgba(255,255,255,0.3); font-size: 12px;">
+                        <span>or</span>
+                    </div>
+                    <div class="video-path-group" style="margin-top: 8px;">
+                        <input v-model="newItem.video_url" class="glass-input" placeholder="https://example.com/video.mp4">
+                        <span style="color: rgba(255,255,255,0.3); font-size: 12px; white-space: nowrap;">Link</span>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Status</label>
+                    <div class="status-radio-group">
+                        <label v-for="status in statusOptions" v-bind:key="status.value" class="status-radio">
+                            <input type="radio" v-model="newItem.status" v-bind:value="status.value">
+                            <span class="status-badge" v-bind:class="status.value" v-text="status.label"></span>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="modal-actions">
+                    <button class="glass-btn" v-on:click="closeAddModal">Cancel</button>
+                    <button class="glass-btn primary" v-on:click="addItem">Add</button>
+                </div>
+            </div>
+        </div>
+        
+        <div v-if="selectedItem" class="modal-overlay" v-on:click.self="closeDetail">
+            <div class="modal modal-detail glass-card">
+                <h2 class="modal-title" style="color: #FF6C00;" v-text="selectedItem.title"></h2>
+                
+                <div class="detail-grid">
+                    <div class="detail-left">
+                        <div><strong>Rating:</strong> <span v-text="selectedItem.rating.toFixed(1)"></span>/10</div>
+                        <div><strong>Year:</strong> <span v-text="selectedItem.year || 'N/A'"></span></div>
+                        <div><strong>Duration:</strong> <span v-text="formatDuration(selectedItem.duration)"></span></div>
+                        <div><strong>Status:</strong> <span class="status-badge" v-bind:class="selectedItem.status" v-text="getStatusLabel(selectedItem.status)"></span></div>
+                        <div v-if="getWatchProgress(selectedItem) > 0">
+                            <strong>Progress:</strong> <span v-text="getWatchProgress(selectedItem) + '%'"></span>
+                            <div class="timer-progress" style="width: 100%; margin-top: 4px;">
+                                <div class="progress-fill" :style="{ width: getWatchProgress(selectedItem) + '%' }"></div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="detail-right">
+                        <div><strong>Genres:</strong> <span v-text="selectedItem.genres.join(', ') || 'None'"></span></div>
+                        <div><strong>Authors:</strong> <span v-text="selectedItem.authors.join(', ') || 'None'"></span></div>
+                    </div>
+                </div>
+                
+                <div v-if="selectedItem.description" class="detail-description">
+                    <strong>Description:</strong>
+                    <p v-text="selectedItem.description"></p>
+                </div>
+                
+                <div class="detail-actions">
+                    <button v-if="selectedItem.video_path" class="glass-btn primary" v-on:click="playVideo(selectedItem)">
+                        Play
+                    </button>
+                    <button class="glass-btn" v-on:click="toggleFavorite(selectedItem)">
+                        {{ selectedItem.favorite ? 'Remove from favorites' : 'Add to favorites' }}
+                    </button>
+                    <button class="glass-btn danger" v-on:click="deleteItem(selectedItem)">Delete</button>
+                    <button class="glass-btn" v-on:click="closeDetail">Close</button>
+                </div>
+            </div>
+        </div>
+        
+        <div v-if="showPlayer" class="modal-overlay" v-on:click.self="closePlayer">
+            <div class="modal modal-player glass-card" :style="playerModalStyle">
+                <h2 class="modal-title" v-text="currentVideo.title"></h2>
+                <div class="player-controls-top">
+                    <div class="player-size-controls">
+                        <div class="size-control-group">
+                            <span class="size-label">Width</span>
+                            <button class="glass-btn size-btn" @click="changePlayerSize(-10)">-</button>
+                            <span class="size-indicator">{{ playerWidth }}%</span>
+                            <button class="glass-btn size-btn" @click="changePlayerSize(10)">+</button>
+                        </div>
+                        <div class="size-control-group">
+                            <span class="size-label">Height</span>
+                            <button class="glass-btn size-btn" @click="changePlayerHeight(-10)">-</button>
+                            <span class="size-indicator">{{ playerHeight }}%</span>
+                            <button class="glass-btn size-btn" @click="changePlayerHeight(10)">+</button>
+                        </div>
+                    </div>
+                    <button class="glass-btn fullscreen-btn" @click="toggleFullscreen">
+                        {{ isFullscreen ? 'Exit Fullscreen' : 'Fullscreen' }}
+                    </button>
+                </div>
+                <div class="player-container" :style="videoContainerStyle">
+                    <video 
+                        ref="videoPlayer"
+                        controls 
+                        autoplay
+                        class="video-player"
+                        v-on:timeupdate="updateProgress"
+                        v-on:ended="onVideoEnded"
+                        v-if="!currentVideo.isUrl"
+                    >
+                        <source v-bind:src="currentVideo.video_path" v-bind:type="getVideoType(currentVideo.video_path)">
+                        Your browser does not support video.
+                    </video>
+                    <div v-else class="video-iframe-container">
+                        <iframe 
+                            :src="currentVideo.video_path"
+                            frameborder="0"
+                            allowfullscreen
+                            allow="autoplay; encrypted-media"
+                            class="video-iframe"
+                        ></iframe>
+                    </div>
+                </div>
+                <div class="player-controls">
+                    <span class="player-time" v-text="currentTime"></span>
+                    <span class="player-duration" v-text="totalDuration"></span>
+                </div>
+                <div class="modal-actions">
+                    <button class="glass-btn" v-on:click="closePlayer">Close</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="toast-container">
+            <div 
+                v-for="toast in toasts" 
+                v-bind:key="toast.id"
+                class="toast"
+                v-bind:class="toast.type"
+                v-text="toast.message"
+            ></div>
+        </div>
+    </div>
+    
+    <script src="/static/js/carousel.js"></script>
+</body>
+</html>
