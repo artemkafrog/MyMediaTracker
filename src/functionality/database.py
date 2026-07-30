@@ -12,6 +12,10 @@ class DatabaseManager:
     def __init__(self, db_path: str = "data/media_tracker.db"):
         self._db_path = db_path
         self._init_db()
+
+    @property
+    def db_path(self):
+        return self._db_path
     
     @contextmanager
     def _get_connection(self):

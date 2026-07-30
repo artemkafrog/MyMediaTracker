@@ -10,12 +10,18 @@ from src.functionality.interactions import describe_item, change_status, get_upc
 from src.functionality.reminder import Reminder
 from src.functionality.file_io import export_to_csv
 
+from src.analytics.data_loader import AnalyticsDataLoader
 
 class MediaTrackerApp:
     def __init__(self):
         self.catalog = MediaCatalog()
         self.db = DatabaseManager()
         self.reminder = Reminder(self.catalog)
+
+        self.analytics = AnalyticsDataLoader(self.db.db_path)
+        self.recommender = None  
+        self.analyzer = None
+
         self._load_from_db()
     
     def _load_from_db(self) -> None:
