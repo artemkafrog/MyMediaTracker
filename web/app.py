@@ -1,7 +1,3 @@
-"""
-Flask web server for MediaTracker
-"""
-
 import os
 import sys
 import json
@@ -17,13 +13,13 @@ from werkzeug.utils import secure_filename
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from src.catalog import MediaCatalog
-from src.database import DatabaseManager
-from src.media import MediaItem
-from src.enums import Status, MediaType
-from src.exceptions import NotFoundError, DuplicateError, ValidationError
-from src.file_io import export_to_csv
-from src.reminder import Reminder
+from src.functionality.catalog import MediaCatalog
+from src.functionality.database import DatabaseManager
+from src.functionality.media import MediaItem
+from src.functionality.enums import Status, MediaType
+from src.functionality.exceptions import NotFoundError, DuplicateError, ValidationError
+from src.functionality.file_io import export_to_csv
+from src.functionality.reminder import Reminder
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'media-tracker-secret-key'
