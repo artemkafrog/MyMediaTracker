@@ -20,3 +20,4 @@ exports/*.csv
 # videos
 thumbnails/
 uploads/
+reports/

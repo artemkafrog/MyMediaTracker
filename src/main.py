@@ -1,5 +1,7 @@
 import sys
 import os
+import shutil
+from pathlib import Path
 from datetime import date
 from src.functionality.catalog import MediaCatalog
 from src.functionality.database import DatabaseManager
@@ -11,24 +13,38 @@ from src.functionality.reminder import Reminder
 from src.functionality.file_io import export_to_csv
 
 from src.analytics.data_loader import AnalyticsDataLoader
+from src.analytics.eda import ExploratoryAnalyzer
+from src.analytics.recommender import ContentRecommender, StatusPredictor
+from src.analytics.report_generator import ReportGenerator
+from src.analytics.integration import AnalyticsIntegration
+
 
 class MediaTrackerApp:
     def __init__(self):
         self.catalog = MediaCatalog()
         self.db = DatabaseManager()
         self.reminder = Reminder(self.catalog)
-
-        self.analytics = AnalyticsDataLoader(self.db.db_path)
-        self.recommender = None  
-        self.analyzer = None
-
+        
         self._load_from_db()
+        self._init_analytics()
     
     def _load_from_db(self) -> None:
         items = self.db.get_all_items()
         for item in items:
             self.catalog.add_item(item)
         print(f"Loaded {len(items)} items from database")
+    
+    def _init_analytics(self) -> None:
+        try:
+            self.analytics = AnalyticsIntegration(self.db._db_path)
+            if self.analytics.initialize():
+                print("Analytics module initialized successfully")
+            else:
+                print("Analytics module initialization failed")
+                self.analytics = None
+        except Exception as e:
+            print(f"Analytics not available: {e}")
+            self.analytics = None
     
     def run(self) -> None:
         while True:
@@ -52,6 +68,8 @@ class MediaTrackerApp:
             elif choice == "8":
                 self._create_backup()
             elif choice == "9":
+                self._analytics_menu()
+            elif choice == "0":
                 print("Goodbye!")
                 sys.exit(0)
             else:
@@ -69,7 +87,8 @@ class MediaTrackerApp:
         print("6. Show reminders")
         print("7. Export to CSV")
         print("8. Create backup")
-        print("9. Exit")
+        print("9. Analytics & Recommendations")
+        print("0. Exit")
         print("=" * 50)
         print(f"In collection: {len(self.catalog)} items")
     
@@ -220,7 +239,8 @@ class MediaTrackerApp:
         
         print("\nAvailable items:")
         for item in items:
-            print(f"  ID: {id(item)} - {item.title} ({item.status.value})")
+            db_id = getattr(item, '_db_id', id(item))
+            print(f"  ID: {db_id} - {item.title} ({item.status.value})")
         
         try:
             item_id = int(input("\nEnter item ID: ").strip())
@@ -342,6 +362,279 @@ class MediaTrackerApp:
             
         except Exception as e:
             print(f"Backup error: {e}")
+    
+    def _clear_reports(self) -> None:
+        print("\n--- Clear Reports ---")
+        
+        reports_path = Path("reports")
+        
+        if not reports_path.exists():
+            print("Reports folder does not exist")
+            return
+        
+        files_count = 0
+        for file in reports_path.rglob("*"):
+            if file.is_file():
+                files_count += 1
+        
+        if files_count == 0:
+            print("Reports folder is already empty")
+            return
+        
+        print(f"Found {files_count} files in reports folder")
+        confirm = input("Are you sure you want to delete all reports? (y/N): ").strip().lower()
+        
+        if confirm != 'y':
+            print("Operation cancelled")
+            return
+        
+        try:
+            for file in reports_path.rglob("*"):
+                if file.is_file():
+                    file.unlink()
+                    print(f"  Deleted: {file}")
+            
+            for folder in sorted(reports_path.rglob("*"), reverse=True):
+                if folder.is_dir() and not any(folder.iterdir()):
+                    folder.rmdir()
+                    print(f"  Removed empty folder: {folder}")
+            
+            reports_path.mkdir(exist_ok=True)
+            figures_path = reports_path / "figures"
+            figures_path.mkdir(exist_ok=True)
+            
+            print(f"\nReports folder cleared successfully!")
+            print(f"All {files_count} files have been deleted")
+            
+        except Exception as e:
+            print(f"Error clearing reports: {e}")
+    
+    def _analytics_menu(self) -> None:
+        if self.analytics is None:
+            print("\nAnalytics module is not available. Please check your data.")
+            input("\nPress Enter to continue...")
+            return
+        
+        while True:
+            print("\n" + "=" * 50)
+            print("        ANALYTICS & RECOMMENDATIONS")
+            print("=" * 50)
+            print("1. Show detailed statistics")
+            print("2. Generate all plots (saves to reports/figures/)")
+            print("3. Get recommendations for an item")
+            print("4. Get recommendations from PLANNED items")
+            print("5. Train status predictor (ML)")
+            print("6. Generate full report (Markdown + Excel)")
+            print("7. Show correlation analysis")
+            print("8. Clear reports folder")
+            print("9. Back to main menu")
+            print("=" * 50)
+            
+            choice = input("Select action: ").strip()
+            
+            if choice == "1":
+                self._analytics_stats()
+            elif choice == "2":
+                self._analytics_plots()
+            elif choice == "3":
+                self._analytics_recommendations()
+            elif choice == "4":
+                self._analytics_recommend_planned()
+            elif choice == "5":
+                self._analytics_train_predictor()
+            elif choice == "6":
+                self._analytics_report()
+            elif choice == "7":
+                self._analytics_correlation()
+            elif choice == "8":
+                self._clear_reports()
+            elif choice == "9":
+                break
+            else:
+                print("Invalid choice")
+            
+            input("\nPress Enter to continue...")
+    
+    def _analytics_stats(self) -> None:
+        try:
+            print("\n" + "=" * 50)
+            print("DETAILED STATISTICS")
+            print("=" * 50)
+            
+            df = self.analytics.loader.load_all_data()
+            stats_df = self.analytics.loader.get_stats_dataframe()
+            
+            print("\nSummary:")
+            for _, row in stats_df['summary'].iterrows():
+                print(f"  {row['metric']}: {row['value']}")
+            
+            print("\nBy Status:")
+            print(stats_df['by_status'].to_string(index=False))
+            
+            print("\nTop Genres:")
+            print(stats_df['by_genre'].head(10).to_string(index=False))
+            
+            print("\nTop Rated:")
+            print(stats_df['top_rated'][['title', 'rating', 'status']].to_string(index=False))
+            
+        except Exception as e:
+            print(f"Error showing statistics: {e}")
+    
+    def _analytics_plots(self) -> None:
+        if self.analytics.analyzer is None:
+            print("Analyzer not initialized")
+            return
+        
+        try:
+            print("\nGenerating plots...")
+            self.analytics.analyzer.generate_full_report()
+            print("\nPlots saved to reports/figures/")
+            
+            import glob
+            plots = glob.glob("reports/figures/*.png")
+            if plots:
+                print(f"\nGenerated {len(plots)} plots:")
+                for p in plots[-5:]:
+                    print(f"  - {os.path.basename(p)}")
+        except Exception as e:
+            print(f"Error generating plots: {e}")
+    
+    def _analytics_recommendations(self) -> None:
+        try:
+            items = list(self.catalog)
+            if not items:
+                print("No items in collection")
+                return
+            
+            print("\nAvailable items (first 20):")
+            for item in items[:20]:
+                db_id = getattr(item, '_db_id', None)
+                if db_id:
+                    print(f"  ID: {db_id} - {item.title} ({item.status.value})")
+                else:
+                    print(f"  ID: {id(item)} - {item.title} ({item.status.value}) [no DB ID]")
+            
+            if len(items) > 20:
+                print(f"  ... and {len(items) - 20} more")
+            
+            item_id = input("\nEnter item ID: ").strip()
+            if not item_id:
+                return
+            
+            item_id = int(item_id)
+            
+            found_item = None
+            for item in items:
+                if getattr(item, '_db_id', None) == item_id:
+                    found_item = item
+                    break
+            
+            if not found_item:
+                try:
+                    found_item = self.catalog.get_item(item_id)
+                except NotFoundError:
+                    print(f"Item with ID {item_id} not found")
+                    return
+            
+            db_id = getattr(found_item, '_db_id', None)
+            if not db_id:
+                print("Item doesn't have a database ID")
+                return
+            
+            recs = self.analytics.get_recommendations(db_id, top_n=5)
+            
+            if not recs:
+                print("\nNo recommendations found")
+                return
+            
+            print(f"\nRecommendations for '{found_item.title}' (ID: {db_id}):")
+            for i, (rec_id, title, score) in enumerate(recs, 1):
+                print(f"  {i}. {title} (ID: {rec_id}) - similarity: {score:.2%}")
+            
+        except ValueError:
+            print("Invalid ID format")
+        except NotFoundError as e:
+            print(f"Error: {e}")
+        except Exception as e:
+            print(f"Error getting recommendations: {e}")
+    
+    def _analytics_recommend_planned(self) -> None:
+        try:
+            recs = self.analytics.get_recommendations_from_planned(top_n=5)
+            
+            if not recs:
+                print("\nNo recommendations from PLANNED items")
+                return
+            
+            print("\nTop recommendations from PLANNED:")
+            for i, (rec_id, title, score) in enumerate(recs, 1):
+                print(f"  {i}. {title} (ID: {rec_id}) - match: {score:.2%}")
+            
+        except Exception as e:
+            print(f"Error getting recommendations: {e}")
+    
+    def _analytics_train_predictor(self) -> None:
+        try:
+            df = self.analytics.loader.load_all_data()
+            predictor = StatusPredictor(df)
+            
+            print("\nTraining status predictor...")
+            metrics = predictor.train_model()
+            
+            print("\nModel Performance:")
+            print(f"  Accuracy:  {metrics['accuracy']:.2%}")
+            print(f"  Precision: {metrics['precision']:.2%}")
+            print(f"  Recall:    {metrics['recall']:.2%}")
+            print(f"  F1 Score:  {metrics['f1_score']:.2%}")
+            
+            importance = predictor.get_feature_importance()
+            print("\nFeature Importance:")
+            for feature, imp in sorted(importance.items(), key=lambda x: x[1], reverse=True):
+                print(f"  {feature}: {imp:.2%}")
+            
+        except Exception as e:
+            print(f"Error training predictor: {e}")
+    
+    def _analytics_report(self) -> None:
+        try:
+            print("\nGenerating full report...")
+            stats = self.analytics.generate_full_report()
+            
+            print("\nReport generated successfully:")
+            print(f"  - Statistics: reports/statistics.txt")
+            print(f"  - Markdown: reports/report.md")
+            print(f"  - Excel: reports/report_*.xlsx")
+            print(f"  - Figures: reports/figures/")
+            
+        except Exception as e:
+            print(f"Error generating report: {e}")
+    
+    def _analytics_correlation(self) -> None:
+        try:
+            df = self.analytics.loader.load_all_data()
+            corr = df[['rating', 'duration', 'release_year']].corr()
+            
+            print("\nCorrelation Matrix:")
+            print(corr.round(3).to_string())
+            
+            print("\nInsights:")
+            rating_duration = corr.loc['rating', 'duration']
+            rating_year = corr.loc['rating', 'release_year']
+            
+            if abs(rating_duration) > 0.3:
+                direction = "positive" if rating_duration > 0 else "negative"
+                print(f"  - Rating and duration have a {direction} correlation ({rating_duration:.2f})")
+            else:
+                print(f"  - Rating and duration show weak correlation ({rating_duration:.2f})")
+            
+            if abs(rating_year) > 0.3:
+                direction = "positive" if rating_year > 0 else "negative"
+                print(f"  - Rating and release year have a {direction} correlation ({rating_year:.2f})")
+            else:
+                print(f"  - Rating and release year show weak correlation ({rating_year:.2f})")
+            
+        except Exception as e:
+            print(f"Error analyzing correlations: {e}")
 
 
 def main():

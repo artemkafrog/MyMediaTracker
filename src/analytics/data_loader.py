@@ -10,6 +10,10 @@ class AnalyticsDataLoader:
         self._db_path = db_path
         self._data = None
 
+    @property
+    def db_path(self):
+        return self._db_path
+
     @cache_result
     def load_all_data(self) -> pd.DataFrame:
         if not Path(self.db_path).exists():
@@ -20,6 +24,11 @@ class AnalyticsDataLoader:
         df = pd.read_sql_query(query, conn)
         conn.close()
 
+        # Преобразуем release_date из строки в date
+        if 'release_date' in df.columns:
+            df['release_date'] = pd.to_datetime(df['release_date']).dt.date
+        
+        # Преобразуем JSON поля
         df['genres'] = df['genres'].apply(
             lambda x: json.loads(x) if x and x != "null" else []
         )
@@ -76,7 +85,7 @@ class AnalyticsDataLoader:
                 df['rating'].max(),
                 df['rating'].min(),
                 df['duration'].sum(),
-                len(set().union(*df['genres'])),
+                len(set().union(*df['genres'])) if len(df) > 0 else 0,
                 len(df[df['status'] == 'WATCHED']),
                 len(df[df['status'] == 'PLANNED']),
                 len(df[df['status'] == 'WATCHING']),
@@ -94,14 +103,17 @@ class AnalyticsDataLoader:
         result['by_status'] = by_status
         
         df_exploded = self.get_genre_exploded()
-        by_genre = df_exploded.groupby('genre').agg({
-            'id': 'count',
-            'rating': 'mean'
-        }).round(2)
-        by_genre.columns = ['count', 'avg_rating']
-        by_genre = by_genre.reset_index()
-        by_genre = by_genre.sort_values('count', ascending=False)
-        result['by_genre'] = by_genre
+        if not df_exploded.empty:
+            by_genre = df_exploded.groupby('genre').agg({
+                'id': 'count',
+                'rating': 'mean'
+            }).round(2)
+            by_genre.columns = ['count', 'avg_rating']
+            by_genre = by_genre.reset_index()
+            by_genre = by_genre.sort_values('count', ascending=False)
+            result['by_genre'] = by_genre
+        else:
+            result['by_genre'] = pd.DataFrame(columns=['genre', 'count', 'avg_rating'])
         
         by_year = df.groupby('release_year').agg({
             'id': 'count',
