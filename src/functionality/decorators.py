@@ -7,8 +7,8 @@ def timing(func):
         t_start = time.perf_counter()
         result = func(*args, **kwargs)
         t_end = time.perf_counter()
-        time = t_end - t_start
-        print(f"The function {func.__name__} completed in {time:.6f} sec")
+        t = t_end - t_start
+        print(f"The function {func.__name__} completed in {t:.6f} sec")
         return result
     return wrapper
 
