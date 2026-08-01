@@ -1,6 +1,5 @@
 import sys
 import os
-import shutil
 from pathlib import Path
 from datetime import date
 from src.functionality.catalog import MediaCatalog

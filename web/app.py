@@ -11,7 +11,9 @@ from flask import Flask, render_template, request, jsonify, send_file
 from flask_cors import CORS
 from werkzeug.utils import secure_filename
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_ROOT = Path(__file__).parent.parent
+
+sys.path.append(str(PROJECT_ROOT))
 
 from src.functionality.catalog import MediaCatalog
 from src.functionality.database import DatabaseManager
@@ -40,10 +42,8 @@ def load_catalog():
         items = db.get_all_items()
         for item in items:
             try:
-                # Добавляем в каталог с ID из БД
                 db_id = db.get_item_id_by_title(item.title)
                 if db_id:
-                    # Сохраняем ID в объекте
                     item._db_id = db_id
                 catalog.add_item(item)
             except DuplicateError:
@@ -54,9 +54,8 @@ def load_catalog():
 
 load_catalog()
 
-BASE_DIR = Path(__file__).parent.parent
-UPLOAD_FOLDER = BASE_DIR / 'uploads'
-THUMBNAIL_FOLDER = BASE_DIR / 'thumbnails'
+UPLOAD_FOLDER = PROJECT_ROOT / 'uploads'
+THUMBNAIL_FOLDER = PROJECT_ROOT / 'thumbnails'
 ALLOWED_EXTENSIONS = {'mp4', 'avi', 'mkv', 'mov', 'webm'}
 
 UPLOAD_FOLDER.mkdir(exist_ok=True)
@@ -171,14 +170,12 @@ def generate_thumbnail(filepath: Path, thumbnail_path: Path, time_pos: float = 1
         return False
 
 def item_to_dict(item: MediaItem) -> Dict[str, Any]:
-    # Получаем ID из базы данных по названию
     db_id = db.get_item_id_by_title(item.title)
     if db_id:
         item_id = db_id
     elif hasattr(item, '_db_id') and item._db_id:
         item_id = item._db_id
     else:
-        # Если ID нет, генерируем временный
         import hashlib
         item_id = int(hashlib.md5(item.title.lower().encode()).hexdigest()[:8], 16)
     
@@ -222,6 +219,37 @@ def collection():
 @app.route('/carousel')
 def carousel():
     return render_template('carousel.html')
+
+@app.route('/analytics')
+def analytics():
+    return render_template('analytics.html')
+
+# ==================== СТАТИКА ДЛЯ ОТЧЕТОВ ====================
+
+@app.route('/static/reports/figures/<path:filename>')
+def serve_report_figure(filename):
+    try:
+        # Ищем файл в reports/figures/ относительно корня проекта
+        filepath = PROJECT_ROOT / 'reports' / 'figures' / filename
+        if not filepath.exists():
+            return jsonify({'success': False, 'error': 'File not found: ' + filename}), 404
+        
+        return send_file(str(filepath), mimetype='image/png')
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/static/reports/<path:filename>')
+def serve_report_static(filename):
+    try:
+        filepath = PROJECT_ROOT / 'reports' / filename
+        if not filepath.exists():
+            return jsonify({'success': False, 'error': 'File not found'}), 404
+        
+        return send_file(str(filepath))
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/items', methods=['GET'])
 def get_items():
@@ -312,12 +340,10 @@ def add_item():
             duration=duration
         )
         
-        # Добавляем в БД сначала, чтобы получить ID
         db_id = db.add_item(item)
         if db_id:
             item._db_id = db_id
         
-        # Затем добавляем в каталог
         item_id = catalog.add_item(item)
         
         thumbnail_generated = False
@@ -353,7 +379,6 @@ def update_item(item_id: int):
         if not data:
             return jsonify({'success': False, 'error': 'No data provided'}), 400
         
-        # Ищем item по ID из БД
         item = None
         for cat_item in catalog:
             db_id = db.get_item_id_by_title(cat_item.title)
@@ -423,7 +448,6 @@ def update_item(item_id: int):
 @app.route('/api/items/<int:item_id>', methods=['DELETE'])
 def delete_item(item_id: int):
     try:
-        # Ищем item по ID из БД
         item = None
         cat_id = None
         for cat_item_id, cat_item in catalog._items.items():
@@ -436,10 +460,7 @@ def delete_item(item_id: int):
         if not item or cat_id is None:
             return jsonify({'success': False, 'error': 'Item not found'}), 404
         
-        # Удаляем из каталога
         catalog.remove_item(cat_id)
-        
-        # Удаляем из БД
         db.delete_item(item_id)
         
         thumbnail_path = THUMBNAIL_FOLDER / f"{item_id}.jpg"
@@ -544,7 +565,7 @@ def get_statuses():
 @app.route('/api/export', methods=['GET'])
 def export_data():
     try:
-        export_dir = Path('exports')
+        export_dir = PROJECT_ROOT / 'exports'
         export_dir.mkdir(exist_ok=True)
         
         files = export_to_csv(catalog, str(export_dir))
@@ -640,7 +661,7 @@ def import_data():
 @app.route('/api/backup', methods=['POST'])
 def create_backup():
     try:
-        backup_dir = Path('backups')
+        backup_dir = PROJECT_ROOT / 'backups'
         backup_dir.mkdir(exist_ok=True)
         
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -793,6 +814,339 @@ def serve_video(filename):
         response.headers['Expires'] = '0'
         
         return response
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/analytics/stats', methods=['GET'])
+def get_analytics_stats():
+    try:
+        items = list(catalog)
+        
+        total_items = len(items)
+        avg_rating = sum(i.rating for i in items) / total_items if total_items > 0 else 0
+        total_duration = sum(i.duration for i in items)
+        
+        all_genres = set()
+        for item in items:
+            all_genres.update(item.genres)
+        unique_genres = len(all_genres)
+        
+        status_counts = {}
+        status_labels = {
+            'watched': 'Watched',
+            'watching': 'Watching',
+            'planned': 'Planned',
+            'on_hold': 'On Hold'
+        }
+        status_data = []
+        for status in ['watched', 'watching', 'planned', 'on_hold']:
+            count = sum(1 for i in items if i.status.value == status)
+            status_counts[status] = count
+            status_data.append({
+                'value': status,
+                'label': status_labels.get(status, status),
+                'count': count
+            })
+        
+        genre_counts = {}
+        for item in items:
+            for genre in item.genres:
+                genre_counts[genre] = genre_counts.get(genre, 0) + 1
+        genre_data = [
+            {'label': g, 'count': c} 
+            for g, c in sorted(genre_counts.items(), key=lambda x: x[1], reverse=True)
+        ]
+        
+        year_counts = {}
+        for item in items:
+            if item.release_date:
+                year = item.release_date.year
+                year_counts[year] = year_counts.get(year, 0) + 1
+        year_data = [
+            {'label': str(y), 'count': c} 
+            for y, c in sorted(year_counts.items())
+        ]
+        
+        rating_buckets = {i: 0 for i in range(0, 11)}
+        for item in items:
+            rating = int(item.rating)
+            rating_buckets[rating] = rating_buckets.get(rating, 0) + 1
+        rating_data = [
+            {'label': str(r), 'count': c} 
+            for r, c in rating_buckets.items() if c > 0
+        ]
+        
+        top_rated = sorted(items, key=lambda x: x.rating, reverse=True)[:10]
+        top_rated_data = [
+            {
+                'id': db.get_item_id_by_title(item.title) or id(item),
+                'title': item.title,
+                'rating': item.rating,
+                'status': item.status.value
+            }
+            for item in top_rated
+        ]
+        
+        return jsonify({
+            'success': True,
+            'stats': {
+                'total_items': total_items,
+                'avg_rating': round(avg_rating, 2),
+                'total_duration': total_duration,
+                'unique_genres': unique_genres,
+                'status_counts': status_counts,
+                'genre_counts': genre_counts,
+                'year_counts': year_counts
+            },
+            'status_data': status_data,
+            'genre_data': genre_data,
+            'year_data': year_data,
+            'rating_data': rating_data,
+            'top_rated': top_rated_data
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/analytics/favorites', methods=['GET'])
+def get_favorites():
+    try:
+        favorites = json.loads(request.headers.get('X-Favorites', '[]'))
+        return jsonify({'success': True, 'favorites': favorites})
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/analytics/export', methods=['GET'])
+def export_analytics_report():
+    try:
+        from datetime import datetime
+        
+        items = list(catalog)
+        report_data = {
+            'generated': datetime.now().isoformat(),
+            'total_items': len(items),
+            'items': [item_to_dict(item) for item in items]
+        }
+        
+        report_dir = PROJECT_ROOT / 'reports'
+        report_dir.mkdir(exist_ok=True)
+        
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        filepath = report_dir / f'analytics_report_{timestamp}.json'
+        
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(report_data, f, indent=2, ensure_ascii=False, default=str)
+        
+        return jsonify({
+            'success': True,
+            'url': f'/api/analytics/download/{filepath.name}',
+            'path': str(filepath)
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/analytics/download/<filename>', methods=['GET'])
+def download_analytics_report(filename):
+    try:
+        filepath = PROJECT_ROOT / 'reports' / filename
+        if not filepath.exists():
+            return jsonify({'success': False, 'error': 'File not found'}), 404
+        
+        return send_file(
+            str(filepath),
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/json'
+        )
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/analytics/generate', methods=['POST'])
+def generate_analytics_report():
+    try:
+        from src.analytics.integration import AnalyticsIntegration
+        
+        analytics = AnalyticsIntegration(db._db_path)
+        if not analytics.initialize():
+            return jsonify({'success': False, 'error': 'Analytics initialization failed'}), 500
+        
+        stats = analytics.generate_full_report()
+        
+        return jsonify({
+            'success': True,
+            'path': 'reports/statistics.txt',
+            'stats': stats
+        })
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/reports/list', methods=['GET'])
+def list_reports():
+    try:
+        reports_dir = PROJECT_ROOT / 'reports'
+        if not reports_dir.exists():
+            return jsonify({'success': True, 'reports': []})
+        
+        reports = []
+        for file in reports_dir.iterdir():
+            if file.is_file():
+                reports.append({
+                    'name': file.name,
+                    'size': file.stat().st_size,
+                    'modified': file.stat().st_mtime
+                })
+        
+        reports.sort(key=lambda x: x['modified'], reverse=True)
+        return jsonify({'success': True, 'reports': reports})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/reports/view/<filename>', methods=['GET'])
+def view_report(filename):
+    try:
+        filepath = PROJECT_ROOT / 'reports' / filename
+        if not filepath.exists():
+            return jsonify({'success': False, 'error': 'File not found'}), 404
+        
+        with open(filepath, 'r', encoding='utf-8') as f:
+            content = f.read()
+        
+        return jsonify({'success': True, 'content': content})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/reports/download/<filename>', methods=['GET'])
+def download_report(filename):
+    try:
+        filepath = PROJECT_ROOT / 'reports' / filename
+        if not filepath.exists():
+            return jsonify({'success': False, 'error': 'File not found'}), 404
+        
+        return send_file(
+            str(filepath),
+            as_attachment=True,
+            download_name=filename
+        )
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/reports/delete/<filename>', methods=['DELETE'])
+def delete_report(filename):
+    try:
+        filepath = PROJECT_ROOT / 'reports' / filename
+        if not filepath.exists():
+            return jsonify({'success': False, 'error': 'File not found'}), 404
+        
+        filepath.unlink()
+        return jsonify({'success': True, 'message': 'Report deleted'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/reports/delete-all', methods=['DELETE'])
+def delete_all_reports():
+    try:
+        reports_dir = PROJECT_ROOT / 'reports'
+        if not reports_dir.exists():
+            return jsonify({'success': True, 'message': 'No reports to delete'})
+        
+        deleted = 0
+        for file in reports_dir.iterdir():
+            if file.is_file():
+                file.unlink()
+                deleted += 1
+        
+        return jsonify({'success': True, 'deleted': deleted})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/charts/list', methods=['GET'])
+def list_charts():
+    try:
+        figures_dir = PROJECT_ROOT / 'reports' / 'figures'
+        if not figures_dir.exists():
+            return jsonify({'success': True, 'charts': []})
+        
+        charts = []
+        for file in figures_dir.iterdir():
+            if file.is_file() and file.suffix.lower() in ['.png', '.jpg', '.jpeg', '.svg']:
+                charts.append({
+                    'name': file.name,
+                    'size': file.stat().st_size,
+                    'modified': file.stat().st_mtime
+                })
+        
+        charts.sort(key=lambda x: x['modified'], reverse=True)
+        print(f"Found {len(charts)} charts in {figures_dir}")
+        return jsonify({'success': True, 'charts': charts})
+        
+    except Exception as e:
+        print(f"Error listing charts: {e}")
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/charts/view/<filename>', methods=['GET'])
+def view_chart(filename):
+    try:
+        filepath = PROJECT_ROOT / 'reports' / 'figures' / filename
+        if not filepath.exists():
+            return jsonify({'success': False, 'error': 'File not found: ' + filename}), 404
+        
+        return send_file(str(filepath), mimetype='image/png')
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/charts/delete/<filename>', methods=['DELETE'])
+def delete_chart(filename):
+    try:
+        filepath = PROJECT_ROOT / 'reports' / 'figures' / filename
+        if not filepath.exists():
+            return jsonify({'success': False, 'error': 'File not found'}), 404
+        
+        filepath.unlink()
+        return jsonify({'success': True, 'message': 'Chart deleted'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/charts/delete-all', methods=['DELETE'])
+def delete_all_charts():
+    try:
+        figures_dir = PROJECT_ROOT / 'reports' / 'figures'
+        if not figures_dir.exists():
+            return jsonify({'success': True, 'message': 'No charts to delete'})
+        
+        deleted = 0
+        for file in figures_dir.iterdir():
+            if file.is_file():
+                file.unlink()
+                deleted += 1
+        
+        return jsonify({'success': True, 'deleted': deleted})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/charts/download/<filename>', methods=['GET'])
+def download_chart(filename):
+    try:
+        filepath = PROJECT_ROOT / 'reports' / 'figures' / filename
+        if not filepath.exists():
+            return jsonify({'success': False, 'error': 'File not found'}), 404
+        
+        return send_file(
+            str(filepath),
+            as_attachment=True,
+            download_name=filename
+        )
         
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

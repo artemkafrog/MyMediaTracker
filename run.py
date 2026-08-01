@@ -1,4 +1,3 @@
-import os
 import sys
 import webbrowser
 from pathlib import Path

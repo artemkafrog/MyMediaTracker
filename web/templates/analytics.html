@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MediaTracker - Analytics</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.7.14/dist/vue.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="stylesheet" href="/static/css/analytics.css">
+</head>
+<body>
+    <div id="app" v-bind:class="{ 'light-theme': !darkMode }">
+        <header class="header">
+            <div class="header-left">
+                <a href="/" class="app-title-link">
+                    <h1 class="app-title">MediaTracker</h1>
+                </a>
+            </div>
+            
+            <div class="header-center">
+                <a href="/" class="glass-btn">
+                    <span class="icon">Home</span>
+                </a>
+                <a href="/collection" class="glass-btn">
+                    <span class="icon">Collection</span>
+                </a>
+                <a href="/analytics" class="glass-btn active">
+                    <span class="icon">Analytics</span>
+                </a>
+                <button class="glass-btn" v-on:click="refreshData">
+                    <span class="icon">Refresh</span>
+                </button>
+            </div>
+            
+            <div class="header-right">
+                <button class="glass-btn theme-toggle" v-on:click="toggleTheme">
+                    <span v-if="darkMode">Light</span>
+                    <span v-else>Dark</span>
+                </button>
+            </div>
+        </header>
+        
+        <div class="divider"></div>
+        
+        <main class="analytics-main">
+            <div v-if="loading" class="loading">
+                <div class="loader"></div>
+                <p>Loading analytics...</p>
+            </div>
+            
+            <div v-else>
+                <div class="analytics-header">
+                    <div class="analytics-title">
+                        <h2>Analytics Dashboard</h2>
+                        <p>Insights and statistics from your media collection</p>
+                    </div>
+                    <div class="analytics-actions">
+                        <button class="glass-btn" v-on:click="generateCharts">
+                            <span class="icon">Generate Charts</span>
+                        </button>
+                        <button class="glass-btn" v-on:click="exportReport">
+                            <span class="icon">Export Report</span>
+                        </button>
+                        <button class="glass-btn" v-on:click="showReportsModal = true">
+                            <span class="icon">Reports</span>
+                        </button>
+                        <button class="glass-btn" v-on:click="showChartsModal = true">
+                            <span class="icon">Charts</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card glass-card">
+                        <div class="stat-icon">Video</div>
+                        <div class="stat-value" v-text="stats.total_items || 0"></div>
+                        <div class="stat-label">Total Items</div>
+                    </div>
+                    <div class="stat-card glass-card">
+                        <div class="stat-icon">Rating</div>
+                        <div class="stat-value" v-text="(stats.avg_rating || 0).toFixed(1) + '/10'"></div>
+                        <div class="stat-label">Average Rating</div>
+                    </div>
+                    <div class="stat-card glass-card">
+                        <div class="stat-icon">Clock</div>
+                        <div class="stat-value" v-text="formatDuration(stats.total_duration || 0)"></div>
+                        <div class="stat-label">Total Duration</div>
+                    </div>
+                    <div class="stat-card glass-card">
+                        <div class="stat-icon">Genre</div>
+                        <div class="stat-value" v-text="stats.unique_genres || 0"></div>
+                        <div class="stat-label">Unique Genres</div>
+                    </div>
+                </div>
+
+                <div class="charts-grid">
+                    <div class="chart-card glass-card">
+                        <div class="chart-header">
+                            <h3>Status Distribution</h3>
+                            <span class="chart-total">Total: {{ stats.total_items || 0 }}</span>
+                        </div>
+                        <div class="chart-container">
+                            <canvas ref="statusChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-card glass-card">
+                        <div class="chart-header">
+                            <h3>Rating Distribution</h3>
+                            <span class="chart-total">Avg: {{ (stats.avg_rating || 0).toFixed(1) }}</span>
+                        </div>
+                        <div class="chart-container">
+                            <canvas ref="ratingChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-card glass-card">
+                        <div class="chart-header">
+                            <h3>Top Genres</h3>
+                            <span class="chart-total">{{ genreData.length }} genres</span>
+                        </div>
+                        <div class="chart-container">
+                            <canvas ref="genreChart"></canvas>
+                        </div>
+                    </div>
+
+                    <div class="chart-card glass-card">
+                        <div class="chart-header">
+                            <h3>Releases by Year</h3>
+                            <span class="chart-total">{{ yearData.length }} years</span>
+                        </div>
+                        <div class="chart-container">
+                            <canvas ref="yearChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="insights-grid">
+                    <div class="insight-card glass-card">
+                        <div class="insight-icon">Star</div>
+                        <div class="insight-content">
+                            <h4>Top Rated</h4>
+                            <div v-for="item in topRated" :key="item.id" class="insight-item">
+                                <span class="insight-title">{{ item.title }}</span>
+                                <span class="insight-value">{{ item.rating.toFixed(1) }}/10</span>
+                            </div>
+                            <div v-if="topRated.length === 0" class="insight-empty">No ratings yet</div>
+                        </div>
+                    </div>
+
+                    <div class="insight-card glass-card">
+                        <div class="insight-icon">Trend</div>
+                        <div class="insight-content">
+                            <h4>Most Watched Status</h4>
+                            <div v-if="statusData.length > 0" class="insight-item">
+                                <span class="insight-title">{{ mostCommonStatus.label }}</span>
+                                <span class="insight-value">{{ mostCommonStatus.count }} items</span>
+                            </div>
+                            <div v-else class="insight-empty">No data</div>
+                            <div style="margin-top: 12px; font-size: 12px; color: #6B6B6B;">
+                                <span v-if="stats.avg_rating > 7">High ratings overall</span>
+                                <span v-else-if="stats.avg_rating > 5">Average ratings</span>
+                                <span v-else>Room for improvement</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="insight-card glass-card">
+                        <div class="insight-icon">Clock</div>
+                        <div class="insight-content">
+                            <h4>Watching Progress</h4>
+                            <div v-if="watchingItems.length > 0" class="insight-item">
+                                <span class="insight-title">Currently watching</span>
+                                <span class="insight-value">{{ watchingItems.length }} items</span>
+                            </div>
+                            <div v-else class="insight-empty">No items in progress</div>
+                            <div v-if="watchingItems.length > 0" style="margin-top: 8px;">
+                                <div v-for="item in watchingItems.slice(0, 3)" :key="item.id" class="progress-item">
+                                    <span class="progress-title">{{ item.title }}</span>
+                                    <div class="timer-progress">
+                                        <div class="progress-fill" :style="{ width: getWatchProgress(item) + '%' }"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="insight-card glass-card">
+                        <div class="insight-icon">Favorite</div>
+                        <div class="insight-content">
+                            <h4>Favorites</h4>
+                            <div v-if="favorites.length > 0" class="insight-item">
+                                <span class="insight-title">Favorite items</span>
+                                <span class="insight-value">{{ favorites.length }}</span>
+                            </div>
+                            <div v-else class="insight-empty">No favorites yet</div>
+                            <div v-if="favorites.length > 0" style="margin-top: 8px; font-size: 12px; color: #6B6B6B;">
+                                <span>❤️ {{ favorites.length }} items saved</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="analytics-footer">
+                    <span class="last-updated">Last updated: {{ lastUpdated }}</span>
+                    <span class="total-items">Total: {{ stats.total_items || 0 }} items</span>
+                </div>
+            </div>
+        </main>
+
+        <!-- Reports Modal -->
+        <div v-if="showReportsModal" class="modal-overlay" v-on:click.self="showReportsModal = false">
+            <div class="modal modal-reports glass-card">
+                <div class="modal-header">
+                    <h2 class="modal-title">Reports</h2>
+                    <button class="glass-btn" v-on:click="showReportsModal = false" style="font-size: 20px;">✕</button>
+                </div>
+                
+                <div class="reports-content">
+                    <div v-if="reportsLoading" class="loading" style="min-height: 100px;">
+                        <div class="loader"></div>
+                        <p>Loading reports...</p>
+                    </div>
+                    
+                    <div v-else-if="reports.length === 0" class="empty-state">
+                        <p>No reports generated yet</p>
+                        <button class="glass-btn primary" v-on:click="generateCharts" style="margin-top: 12px;">
+                            Generate Charts
+                        </button>
+                    </div>
+                    
+                    <div v-else>
+                        <div class="reports-actions" style="margin-bottom: 16px;">
+                            <button class="glass-btn danger" v-on:click="deleteAllReports">
+                                <span class="icon">Delete All</span>
+                            </button>
+                        </div>
+                        
+                        <div class="reports-list">
+                            <div v-for="report in reports" :key="report.name" class="report-item glass-card">
+                                <div class="report-info">
+                                    <span class="report-name">{{ report.name }}</span>
+                                    <span class="report-size">{{ formatFileSize(report.size) }}</span>
+                                    <span class="report-date">{{ formatDate(report.modified) }}</span>
+                                </div>
+                                <div class="report-actions">
+                                    <button class="glass-btn" v-on:click="viewReport(report)">
+                                        <span class="icon">View</span>
+                                    </button>
+                                    <button class="glass-btn danger" v-on:click="deleteReport(report)">
+                                        <span class="icon">Delete</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Modal -->
+        <div v-if="showChartsModal" class="modal-overlay" v-on:click.self="showChartsModal = false">
+            <div class="modal modal-charts glass-card">
+                <div class="modal-header">
+                    <h2 class="modal-title">Charts</h2>
+                    <button class="glass-btn" v-on:click="showChartsModal = false" style="font-size: 20px;">✕</button>
+                </div>
+                
+                <div class="charts-content">
+                    <div v-if="chartsLoading" class="loading" style="min-height: 100px;">
+                        <div class="loader"></div>
+                        <p>Loading charts...</p>
+                    </div>
+                    
+                    <div v-else-if="charts.length === 0" class="empty-state">
+                        <p>No charts generated yet</p>
+                        <button class="glass-btn primary" v-on:click="generateCharts" style="margin-top: 12px;">
+                            Generate Charts
+                        </button>
+                    </div>
+                    
+                    <div v-else>
+                        <div class="charts-actions" style="margin-bottom: 16px;">
+                            <button class="glass-btn danger" v-on:click="deleteAllCharts">
+                                <span class="icon">Delete All</span>
+                            </button>
+                        </div>
+                        
+                        <div class="charts-grid-modal">
+                            <div v-for="chart in charts" :key="chart.name" class="chart-item glass-card">
+                                <div class="chart-preview">
+                                    <img 
+                                        :src="chart.url" 
+                                        :alt="chart.name" 
+                                        @click="viewChart(chart)"
+                                        @error="handleImageError"
+                                        loading="lazy"
+                                    >
+                                </div>
+                                <div class="chart-info">
+                                    <span class="chart-name">{{ chart.name }}</span>
+                                    <span class="chart-size">{{ formatFileSize(chart.size) }}</span>
+                                    <span class="chart-date">{{ formatDate(chart.modified) }}</span>
+                                </div>
+                                <div class="chart-actions">
+                                    <button class="glass-btn" v-on:click="viewChart(chart)">
+                                        <span class="icon">View</span>
+                                    </button>
+                                    <button class="glass-btn danger" v-on:click="deleteChart(chart)">
+                                        <span class="icon">Delete</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Chart Viewer Modal -->
+        <div v-if="showChartViewer" class="modal-overlay" v-on:click.self="showChartViewer = false">
+            <div class="modal modal-chart-viewer glass-card">
+                <div class="modal-header">
+                    <h2 class="modal-title">{{ currentChart.name }}</h2>
+                    <button class="glass-btn" v-on:click="showChartViewer = false" style="font-size: 20px;">✕</button>
+                </div>
+                <div class="chart-viewer-content">
+                    <img :src="currentChart.url" :alt="currentChart.name" class="chart-full-image">
+                </div>
+                <div class="modal-actions">
+                    <button class="glass-btn" v-on:click="downloadChart(currentChart)">
+                        <span class="icon">Download</span>
+                    </button>
+                    <button class="glass-btn" v-on:click="showChartViewer = false">Close</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Report Viewer Modal -->
+        <div v-if="showReportViewer" class="modal-overlay" v-on:click.self="showReportViewer = false">
+            <div class="modal modal-report-viewer glass-card">
+                <div class="modal-header">
+                    <h2 class="modal-title">{{ currentReport.name }}</h2>
+                    <button class="glass-btn" v-on:click="showReportViewer = false" style="font-size: 20px;">✕</button>
+                </div>
+                <div class="report-content">
+                    <pre v-if="currentReport.content" class="report-text">{{ currentReport.content }}</pre>
+                    <div v-else class="loading" style="min-height: 100px;">
+                        <div class="loader"></div>
+                        <p>Loading report content...</p>
+                    </div>
+                </div>
+                <div class="modal-actions">
+                    <button class="glass-btn" v-on:click="downloadReport(currentReport)">
+                        <span class="icon">Download</span>
+                    </button>
+                    <button class="glass-btn" v-on:click="showReportViewer = false">Close</button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="toast-container">
+            <div 
+                v-for="toast in toasts" 
+                v-bind:key="toast.id"
+                class="toast"
+                v-bind:class="toast.type"
+                v-text="toast.message"
+            ></div>
+        </div>
+    </div>
+    
+    <script src="/static/js/analytics.js"></script>
+</body>
+</html>
