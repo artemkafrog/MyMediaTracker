@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MediaTracker - Analytics</title>
+    <!-- В HEAD или перед другими скриптами -->
+    <script src="/static/js/theme.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vue@2.7.14/dist/vue.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
@@ -18,20 +20,26 @@
                     <h1 class="app-title">MediaTracker</h1>
                 </a>
             </div>
-            
             <div class="header-center">
-                <a href="/" class="glass-btn">
-                    <span class="icon">Home</span>
-                </a>
-                <a href="/collection" class="glass-btn">
-                    <span class="icon">Collection</span>
-                </a>
-                <a href="/analytics" class="glass-btn active">
-                    <span class="icon">Analytics</span>
-                </a>
-                <button class="glass-btn" v-on:click="refreshData">
-                    <span class="icon">Refresh</span>
-                </button>
+                <div class="header-nav">
+                    <a href="/" class="glass-btn">
+                        <span class="icon">Home</span>
+                    </a>
+                    <a href="/collection" class="glass-btn">
+                        <span class="icon">Collection</span>
+                    </a>
+                    <a href="/analytics" class="glass-btn active">
+                        <span class="icon">Analytics</span>
+                    </a>
+                </div>
+                
+                <div class="header-divider"></div>
+                
+                <div class="header-actions">
+                    <button class="glass-btn" v-on:click="refreshData">
+                        <span class="icon">Refresh</span>
+                    </button>
+                </div>
             </div>
             
             <div class="header-right">
@@ -60,14 +68,14 @@
                         <button class="glass-btn" v-on:click="generateCharts">
                             <span class="icon">Generate Charts</span>
                         </button>
+                        <button class="glass-btn" v-on:click="showChartsModal = true">
+                            <span class="icon">Charts</span>
+                        </button>
                         <button class="glass-btn" v-on:click="exportReport">
                             <span class="icon">Export Report</span>
                         </button>
                         <button class="glass-btn" v-on:click="showReportsModal = true">
                             <span class="icon">Reports</span>
-                        </button>
-                        <button class="glass-btn" v-on:click="showChartsModal = true">
-                            <span class="icon">Charts</span>
                         </button>
                     </div>
                 </div>
@@ -95,6 +103,7 @@
                     </div>
                 </div>
 
+                <!-- Status Distribution -->
                 <div class="charts-grid">
                     <div class="chart-card glass-card">
                         <div class="chart-header">
@@ -104,8 +113,18 @@
                         <div class="chart-container">
                             <canvas ref="statusChart"></canvas>
                         </div>
+                        <div class="chart-list">
+                            <div v-for="item in statusData" :key="item.value" class="chart-list-item">
+                                <span class="list-label" :style="{ color: statusColors[item.value] }">{{ item.label }}</span>
+                                <div class="list-bar">
+                                    <div class="list-bar-fill" :style="{ width: (stats.total_items > 0 ? (item.count / stats.total_items * 100) : 0) + '%', background: statusColors[item.value] }"></div>
+                                </div>
+                                <span class="list-count">{{ item.count }}</span>
+                            </div>
+                        </div>
                     </div>
 
+                    <!-- Rating Distribution -->
                     <div class="chart-card glass-card">
                         <div class="chart-header">
                             <h3>Rating Distribution</h3>
@@ -114,8 +133,18 @@
                         <div class="chart-container">
                             <canvas ref="ratingChart"></canvas>
                         </div>
+                        <div class="chart-list scrollable">
+                            <div v-for="item in ratingData" :key="item.label" class="chart-list-item">
+                                <span class="list-label">{{ item.label }}</span>
+                                <div class="list-bar">
+                                    <div class="list-bar-fill" :style="{ width: (stats.total_items > 0 ? (item.count / stats.total_items * 100) : 0) + '%' }"></div>
+                                </div>
+                                <span class="list-count">{{ item.count }}</span>
+                            </div>
+                        </div>
                     </div>
 
+                    <!-- Top Genres -->
                     <div class="chart-card glass-card">
                         <div class="chart-header">
                             <h3>Top Genres</h3>
@@ -124,8 +153,18 @@
                         <div class="chart-container">
                             <canvas ref="genreChart"></canvas>
                         </div>
+                        <div class="chart-list scrollable">
+                            <div v-for="item in genreData.slice(0, 15)" :key="item.label" class="chart-list-item">
+                                <span class="list-label">{{ item.label }}</span>
+                                <div class="list-bar">
+                                    <div class="list-bar-fill" :style="{ width: (stats.total_items > 0 ? (item.count / stats.total_items * 100) : 0) + '%' }"></div>
+                                </div>
+                                <span class="list-count">{{ item.count }}</span>
+                            </div>
+                        </div>
                     </div>
 
+                    <!-- Releases by Year -->
                     <div class="chart-card glass-card">
                         <div class="chart-header">
                             <h3>Releases by Year</h3>
@@ -133,6 +172,15 @@
                         </div>
                         <div class="chart-container">
                             <canvas ref="yearChart"></canvas>
+                        </div>
+                        <div class="chart-list scrollable">
+                            <div v-for="item in yearData" :key="item.label" class="chart-list-item">
+                                <span class="list-label">{{ item.label }}</span>
+                                <div class="list-bar">
+                                    <div class="list-bar-fill" :style="{ width: (stats.total_items > 0 ? (item.count / stats.total_items * 100) : 0) + '%' }"></div>
+                                </div>
+                                <span class="list-count">{{ item.count }}</span>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -150,54 +198,62 @@
                         </div>
                     </div>
 
+                    <!-- Status Overview -->
                     <div class="insight-card glass-card">
                         <div class="insight-icon">Trend</div>
                         <div class="insight-content">
-                            <h4>Most Watched Status</h4>
-                            <div v-if="statusData.length > 0" class="insight-item">
-                                <span class="insight-title">{{ mostCommonStatus.label }}</span>
-                                <span class="insight-value">{{ mostCommonStatus.count }} items</span>
+                            <h4>Status Overview</h4>
+                            <div v-for="item in statusData" :key="item.value" class="insight-item">
+                                <span class="insight-title">{{ item.label }}</span>
+                                <span class="insight-value">{{ item.count }} items</span>
                             </div>
-                            <div v-else class="insight-empty">No data</div>
-                            <div style="margin-top: 12px; font-size: 12px; color: #6B6B6B;">
-                                <span v-if="stats.avg_rating > 7">High ratings overall</span>
-                                <span v-else-if="stats.avg_rating > 5">Average ratings</span>
-                                <span v-else>Room for improvement</span>
-                            </div>
+                            <div v-if="statusData.length === 0" class="insight-empty">No data</div>
                         </div>
                     </div>
 
+                    <!-- Watching Progress with timestamps -->
                     <div class="insight-card glass-card">
                         <div class="insight-icon">Clock</div>
                         <div class="insight-content">
-                            <h4>Watching Progress</h4>
-                            <div v-if="watchingItems.length > 0" class="insight-item">
-                                <span class="insight-title">Currently watching</span>
-                                <span class="insight-value">{{ watchingItems.length }} items</span>
+                            <h4>Continue Watching</h4>
+                            <div v-if="watchingList.length > 0" class="insight-item">
+                                <span class="insight-title">In progress</span>
+                                <span class="insight-value">{{ watchingList.length }} items</span>
                             </div>
                             <div v-else class="insight-empty">No items in progress</div>
-                            <div v-if="watchingItems.length > 0" style="margin-top: 8px;">
-                                <div v-for="item in watchingItems.slice(0, 3)" :key="item.id" class="progress-item">
-                                    <span class="progress-title">{{ item.title }}</span>
-                                    <div class="timer-progress">
-                                        <div class="progress-fill" :style="{ width: getWatchProgress(item) + '%' }"></div>
+                            <div v-if="watchingList.length > 0" style="margin-top: 8px; max-height: 200px; overflow-y: auto;">
+                                <div v-for="item in watchingList" :key="item.id" class="progress-item" style="margin-bottom: 8px; padding: 6px 0; border-bottom: 1px solid rgba(255,255,255,0.05);">
+                                    <div style="display: flex; justify-content: space-between; width: 100%;">
+                                        <span class="progress-title" style="flex: 1; min-width: 0; font-size: 12px; color: #A1A1A1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{{ item.title }}</span>
+                                        <span class="progress-percent" style="min-width: 50px; text-align: right; font-size: 11px; color: #6B6B6B;">{{ getWatchProgress(item) }}%</span>
+                                    </div>
+                                    <div class="timer-progress" style="margin-top: 4px; height: 3px; background: #1A1A1A; border-radius: 2px; overflow: hidden;">
+                                        <div class="progress-fill" :style="{ width: getWatchProgress(item) + '%', height: '100%', background: '#D97A3A', borderRadius: '2px', transition: 'width 0.5s ease' }"></div>
+                                    </div>
+                                    <div style="display: flex; justify-content: space-between; font-size: 11px; color: #6B6B6B; margin-top: 2px;">
+                                        <span>{{ item.duration > 0 ? formatDuration(Math.round(item.duration * getWatchProgress(item) / 100)) + ' / ' + formatDuration(item.duration) : 'N/A' }}</span>
+                                        <span>{{ getStatusLabel(item.status) }}</span>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
 
+                    <!-- Favorites -->
                     <div class="insight-card glass-card">
                         <div class="insight-icon">Favorite</div>
                         <div class="insight-content">
                             <h4>Favorites</h4>
-                            <div v-if="favorites.length > 0" class="insight-item">
+                            <div v-if="favoritesList.length > 0" class="insight-item">
                                 <span class="insight-title">Favorite items</span>
-                                <span class="insight-value">{{ favorites.length }}</span>
+                                <span class="insight-value">{{ favoritesList.length }}</span>
                             </div>
                             <div v-else class="insight-empty">No favorites yet</div>
-                            <div v-if="favorites.length > 0" style="margin-top: 8px; font-size: 12px; color: #6B6B6B;">
-                                <span>❤️ {{ favorites.length }} items saved</span>
+                            <div v-if="favoritesList.length > 0" style="margin-top: 8px; max-height: 150px; overflow-y: auto;">
+                                <div v-for="item in favoritesList" :key="item.id" class="insight-item" style="font-size: 12px;">
+                                    <span class="insight-title">{{ item.title }}</span>
+                                    <span class="insight-value">{{ item.rating.toFixed(1) }}/10</span>
+                                </div>
                             </div>
                         </div>
                     </div>

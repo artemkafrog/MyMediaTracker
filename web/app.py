@@ -308,15 +308,23 @@ def add_item():
         
         status = status_from_string(data.get('status', 'planned'))
         
-        genres_str = data.get('genres', '')
-        genres = [g.strip() for g in genres_str.split(',') if g.strip()]
+        # Обработка genres - может быть строкой или списком
+        genres_data = data.get('genres', '')
+        if isinstance(genres_data, list):
+            genres = [g.strip() for g in genres_data if g and g.strip()]
+        else:
+            genres = [g.strip() for g in genres_data.split(',') if g.strip()]
         
-        authors_str = data.get('authors', '')
-        authors = [a.strip() for a in authors_str.split(',') if a.strip()]
+        # Обработка authors - может быть строкой или списком
+        authors_data = data.get('authors', '')
+        if isinstance(authors_data, list):
+            authors = [a.strip() for a in authors_data if a and a.strip()]
+        else:
+            authors = [a.strip() for a in authors_data.split(',') if a.strip()]
         
         duration = int(data.get('duration', 0))
         video_path = data.get('video_path', '')
-        
+
         if video_path and duration == 0:
             try:
                 filename = video_path.split('/')[-1]
@@ -325,8 +333,8 @@ def add_item():
                     info = extract_video_info(filepath)
                     if info['duration'] > 0:
                         duration = info['duration'] // 60
-            except Exception:
-                pass
+            except Exception as e:
+                print(f"Could not extract duration: {e}")
         
         item = MediaItem(
             title=title,
@@ -402,18 +410,18 @@ def update_item(item_id: int):
             item._description = data['description']
         
         if 'genres' in data:
-            genres_str = data['genres']
-            if isinstance(genres_str, str):
-                item._genres = [g.strip() for g in genres_str.split(',') if g.strip()]
+            genres_data = data['genres']
+            if isinstance(genres_data, list):
+                item._genres = [g.strip() for g in genres_data if g and g.strip()]
             else:
-                item._genres = genres_str
+                item._genres = [g.strip() for g in genres_data.split(',') if g.strip()]
         
         if 'authors' in data:
-            authors_str = data['authors']
-            if isinstance(authors_str, str):
-                item._authors = [a.strip() for a in authors_str.split(',') if a.strip()]
+            authors_data = data['authors']
+            if isinstance(authors_data, list):
+                item._authors = [a.strip() for a in authors_data if a and a.strip()]
             else:
-                item._authors = authors_str
+                item._authors = [a.strip() for a in authors_data.split(',') if a.strip()]
         
         if 'duration' in data:
             item._duration = int(data['duration'])
@@ -444,6 +452,7 @@ def update_item(item_id: int):
         return jsonify({'success': False, 'error': str(e)}), 404
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
 
 @app.route('/api/items/<int:item_id>', methods=['DELETE'])
 def delete_item(item_id: int):

@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MediaTracker - Collection</title>
+    <!-- В HEAD или перед другими скриптами -->
+    <script src="/static/js/theme.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/vue@2.7.14/dist/vue.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/static/css/style.css">
@@ -16,32 +18,41 @@
                     <h1 class="app-title">MediaTracker</h1>
                 </a>
             </div>
-            
             <div class="header-center">
-                <a href="/" class="glass-btn">
-                    <span class="icon">Home</span>
-                </a>
-                <a href="/collection" class="glass-btn active">
-                    <span class="icon">Collection</span>
-                </a>
-                <a href="/analytics" class="glass-btn">
-                    <span class="icon">Analytics</span>
-                </a>
-                <button class="glass-btn" v-on:click="openAddModal">
-                    <span class="icon">Add</span>
-                </button>
-                <button class="glass-btn" v-on:click="refreshItems">
-                    <span class="icon">Refresh</span>
-                </button>
-                <button class="glass-btn" v-bind:class="{ active: viewMode === 'grid' }" v-on:click="viewMode = 'grid'">
-                    <span class="icon">Grid</span>
-                </button>
-                <button class="glass-btn" v-bind:class="{ active: viewMode === 'list' }" v-on:click="viewMode = 'list'">
-                    <span class="icon">List</span>
-                </button>
-                <button class="glass-btn" v-on:click="openStatsModal">
-                    <span class="icon">Stats</span>
-                </button>
+                <div class="header-nav">
+                    <a href="/" class="glass-btn">
+                        <span class="icon">Home</span>
+                    </a>
+                    <a href="/collection" class="glass-btn active">
+                        <span class="icon">Collection</span>
+                    </a>
+                    <a href="/analytics" class="glass-btn">
+                        <span class="icon">Analytics</span>
+                    </a>
+                </div>
+                
+                <div class="header-divider"></div>
+                
+                <div class="header-actions">
+                    <button class="glass-btn" v-on:click="openAddModal">
+                        <span class="icon">Add</span>
+                    </button>
+                    <button class="glass-btn" v-on:click="openBatchAddModal">
+                        <span class="icon">Batch Add</span>
+                    </button>
+                    <button class="glass-btn" v-on:click="refreshItems">
+                        <span class="icon">Refresh</span>
+                    </button>
+                    <button class="glass-btn" v-bind:class="{ active: viewMode === 'grid' }" v-on:click="viewMode = 'grid'">
+                        <span class="icon">Grid</span>
+                    </button>
+                    <button class="glass-btn" v-bind:class="{ active: viewMode === 'list' }" v-on:click="viewMode = 'list'">
+                        <span class="icon">List</span>
+                    </button>
+                    <button class="glass-btn" v-on:click="openStatsModal">
+                        <span class="icon">Stats</span>
+                    </button>
+                </div>
             </div>
             
             <div class="header-right">
@@ -100,6 +111,12 @@
                         >
                         <span v-else class="preview-icon">Video</span>
                         <div class="card-duration" v-text="formatDuration(item.duration)"></div>
+                        <!-- Кнопка сердца -->
+                        <button class="card-favorite-btn" 
+                                v-on:click.stop="toggleFavorite(item)"
+                                v-bind:class="{ favorite: item.favorite }">
+                            ♡
+                        </button>
                     </div>
                     <div class="card-content">
                         <div class="card-title" v-text="item.title"></div>
@@ -171,6 +188,7 @@
             <span class="status-total">Total: <span v-text="filteredItems.length"></span></span>
         </footer>
         
+        <!-- Add Single Modal -->
         <div v-if="showAddModal" class="modal-overlay" v-on:click.self="closeAddModal">
             <div class="modal glass-card">
                 <h2 class="modal-title">{{ isEditing ? 'EDIT VIDEO' : 'ADD VIDEO' }}</h2>
@@ -243,6 +261,104 @@
             </div>
         </div>
         
+        <!-- Batch Add Modal -->
+        <div v-if="showBatchAddModal" class="modal-overlay" v-on:click.self="closeBatchAddModal">
+            <div class="modal modal-batch glass-card">
+                <h2 class="modal-title">BATCH ADD VIDEOS</h2>
+                <p style="color: #6B6B6B; margin-bottom: 16px; font-size: 14px;">
+                    Drag & drop files or click to select multiple videos
+                </p>
+                
+                <div class="batch-drop-zone" 
+                     v-on:drop.prevent="handleBatchDrop"
+                     v-on:dragover.prevent
+                     v-on:dragenter="dragEnter"
+                     v-on:dragleave="dragLeave"
+                     v-bind:class="{ 'drag-over': isDragOver }"
+                     v-on:click="$refs.batchFileInput.click()">
+                    <div class="drop-zone-content">
+                        <span class="drop-icon">📁</span>
+                        <p>Drop video files here or click to browse</p>
+                        <span class="drop-hint">Supports: MP4, AVI, MKV, MOV, WEBM</span>
+                    </div>
+                    <input type="file" ref="batchFileInput" multiple accept=".mp4,.avi,.mkv,.mov,.webm" style="display:none" v-on:change="handleBatchFiles">
+                </div>
+                
+                <div v-if="batchFiles.length > 0" class="batch-list">
+                    <div class="batch-header">
+                        <span>{{ batchFiles.length }} files selected</span>
+                        <div class="batch-header-actions">
+                            <button class="glass-btn" v-on:click="toggleBatchEditMode">
+                                {{ batchEditMode ? 'Hide Details' : 'Edit Details' }}
+                            </button>
+                            <button class="glass-btn danger" v-on:click="clearBatchFiles">Clear All</button>
+                        </div>
+                    </div>
+                    
+                    <div class="batch-items">
+                        <div v-for="(file, index) in batchFiles" :key="index" class="batch-item glass-card">
+                            <div class="batch-item-preview">
+                                <span class="file-icon">🎬</span>
+                                <div class="file-info">
+                                    <span class="file-name">{{ file.name }}</span>
+                                    <span class="file-size">{{ formatFileSize(file.size) }}</span>
+                                </div>
+                                <button class="glass-btn danger" v-on:click="removeBatchFile(index)" style="padding: 4px 8px; font-size: 12px;">✕</button>
+                            </div>
+                            
+                            <div v-if="batchEditMode" class="batch-item-edit">
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Title</label>
+                                        <input v-model="file.metadata.title" class="glass-input" placeholder="Title">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Year</label>
+                                        <input v-model.number="file.metadata.year" type="number" class="glass-input" placeholder="2024">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Rating</label>
+                                        <input v-model.number="file.metadata.rating" type="number" step="0.1" class="glass-input" placeholder="5.0">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label>Genres (comma separated)</label>
+                                        <input v-model="file.metadata.genres" class="glass-input" placeholder="Comedy, Drama">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Authors (comma separated)</label>
+                                        <input v-model="file.metadata.authors" class="glass-input" placeholder="Director, Writer">
+                                    </div>
+                                    <div class="form-group">
+                                        <label>Status</label>
+                                        <select v-model="file.metadata.status" class="glass-input">
+                                            <option v-for="opt in statusOptions" :key="opt.value" :value="opt.value">
+                                                {{ opt.label }}
+                                            </option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label>Description</label>
+                                    <textarea v-model="file.metadata.description" class="glass-textarea" placeholder="Brief description..." style="min-height: 40px;"></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="batch-actions">
+                        <button class="glass-btn" v-on:click="closeBatchAddModal">Cancel</button>
+                        <button class="glass-btn primary" v-on:click="uploadBatchFiles" :disabled="batchUploading">
+                            <span v-if="batchUploading">Uploading...</span>
+                            <span v-else>Upload {{ batchFiles.length }} files</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Detail Modal -->
         <div v-if="selectedItem" class="modal-overlay" v-on:click.self="selectedItem = null">
             <div class="modal modal-detail glass-card">
                 <h2 class="modal-title" style="color: #FF6C00;" v-text="selectedItem.title"></h2>
@@ -285,6 +401,7 @@
             </div>
         </div>
         
+        <!-- Stats Modal -->
         <div v-if="showStatsModal" class="modal-overlay" v-on:click.self="closeStatsModal">
             <div class="modal modal-stats glass-card">
                 <h2 class="modal-title">STATISTICS</h2>
@@ -328,6 +445,7 @@
             </div>
         </div>
         
+        <!-- Player Modal -->
         <div v-if="showPlayer" class="modal-overlay" v-on:click.self="closePlayer">
             <div class="modal modal-player glass-card" :style="playerModalStyle">
                 <h2 class="modal-title" v-text="currentVideo.title"></h2>

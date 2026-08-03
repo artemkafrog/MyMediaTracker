@@ -1,10 +1,15 @@
+// Подключаем ThemeManager
+if (typeof ThemeManager === 'undefined') {
+    console.warn('ThemeManager not loaded, using fallback');
+}
+
 const app = new Vue({
     el: '#app',
     
     data() {
         return {
             loading: false,
-            darkMode: true,
+            darkMode: ThemeManager ? ThemeManager.isDark() : true,
             
             stats: {
                 total_items: 0,
@@ -22,7 +27,9 @@ const app = new Vue({
             ratingData: [],
             topRated: [],
             watchingItems: [],
+            watchingList: [],
             favorites: [],
+            allItems: [],
             
             statusChart: null,
             ratingChart: null,
@@ -62,6 +69,50 @@ const app = new Vue({
                 const mins = minutes % 60;
                 return hours + 'h ' + mins + 'm';
             };
+        },
+        
+        statusColors() {
+            return {
+                'watched': '#4CAF50',
+                'watching': '#FFB74D',
+                'planned': '#64B5F6',
+                'on_hold': '#EF5350'
+            };
+        },
+        
+        getStatusLabel() {
+            const labels = {
+                'watched': 'Watched',
+                'watching': 'Watching',
+                'planned': 'Planned',
+                'on_hold': 'On Hold'
+            };
+            return (status) => labels[status] || status;
+        },
+        
+        favoritesList() {
+            if (!this.allItems || this.allItems.length === 0) return [];
+            if (!this.favorites || this.favorites.length === 0) return [];
+            
+            const result = this.allItems.filter(item => this.favorites.includes(item.id));
+            return result;
+        },
+        
+        watchingItemsList() {
+            if (!this.allItems || this.allItems.length === 0) return [];
+            
+            const history = JSON.parse(localStorage.getItem('watchHistory') || '{}');
+            const result = this.allItems.filter(item => {
+                if (item.status === 'watched') return false;
+                const progress = this.getWatchProgress(item);
+                return progress > 0 && progress < 100;
+            });
+            
+            return result.sort((a, b) => {
+                const aTime = history[a.id]?.lastWatched || 0;
+                const bTime = history[b.id]?.lastWatched || 0;
+                return bTime - aTime;
+            });
         }
     },
     
@@ -75,26 +126,42 @@ const app = new Vue({
             document.body.classList.add('light-theme');
             document.getElementById('app').classList.add('light-theme');
         }
+        
+        const storedFavorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+        console.log('Stored favorites from localStorage:', storedFavorites);
+        
+        // Слушаем изменения темы из других вкладок/приложений
+        document.addEventListener('themeChanged', this.onThemeChanged);
     },
     
     beforeDestroy() {
         this.destroyCharts();
+        document.removeEventListener('themeChanged', this.onThemeChanged);
     },
     
     methods: {
+        onThemeChanged(e) {
+            this.darkMode = e.detail.darkMode;
+            setTimeout(() => {
+                this.renderCharts();
+            }, 100);
+        },
+        
         async loadAnalytics() {
             this.loading = true;
             
             try {
-                const [statsRes, itemsRes, favoritesRes] = await Promise.all([
+                const [statsRes, itemsRes] = await Promise.all([
                     fetch('/api/analytics/stats'),
-                    fetch('/api/items'),
-                    fetch('/api/analytics/favorites')
+                    fetch('/api/items')
                 ]);
                 
                 const statsData = await statsRes.json();
                 const itemsData = await itemsRes.json();
-                const favoritesData = await favoritesRes.json();
+                
+                const storedFavorites = JSON.parse(localStorage.getItem('favorites') || '[]');
+                this.favorites = storedFavorites;
+                console.log('Favorites loaded from localStorage:', this.favorites);
                 
                 if (statsData.success) {
                     this.stats = statsData.stats;
@@ -106,8 +173,17 @@ const app = new Vue({
                 }
                 
                 if (itemsData.success) {
-                    this.watchingItems = itemsData.items.filter(item => item.status === 'watching');
-                    this.favorites = favoritesData.success ? favoritesData.favorites : [];
+                    this.allItems = itemsData.items;
+                    console.log('All items loaded:', this.allItems.length);
+                    
+                    this.watchingItems = this.allItems.filter(item => {
+                        if (item.status !== 'watching') return false;
+                        const progress = this.getWatchProgress(item);
+                        return progress > 0;
+                    });
+                    
+                    this.watchingList = this.watchingItemsList;
+                    console.log('Watching items with progress:', this.watchingList);
                 }
                 
                 this.lastUpdated = new Date().toLocaleString();
@@ -456,8 +532,16 @@ const app = new Vue({
                 const data = await response.json();
                 
                 if (data.success) {
+                    const blob = await (await fetch(data.url)).blob();
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    const filename = data.url.split('/').pop() || 'analytics_report.json';
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    setTimeout(() => URL.revokeObjectURL(link.href), 100);
                     this.showToast('Report exported successfully', 'success');
-                    window.open(data.url, '_blank');
                 } else {
                     this.showToast(data.error || 'Export failed', 'error');
                 }
@@ -532,10 +616,15 @@ const app = new Vue({
         async downloadReport(report) {
             try {
                 const response = await fetch('/api/reports/download/' + report.name);
-                const data = await response.json();
-                if (data.success) {
-                    window.open(data.url, '_blank');
-                }
+                const blob = await response.blob();
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = report.name;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                setTimeout(() => URL.revokeObjectURL(link.href), 100);
+                this.showToast('Report downloaded: ' + report.name, 'success');
             } catch (error) {
                 console.error('Error downloading report:', error);
                 this.showToast('Download error', 'error');
@@ -544,6 +633,10 @@ const app = new Vue({
         
         // === CHART METHODS ===
         async viewChart(chart) {
+            if (!chart.url) {
+                this.showToast('Chart URL not found', 'error');
+                return;
+            }
             this.currentChart = chart;
             this.showChartViewer = true;
         },
@@ -594,13 +687,31 @@ const app = new Vue({
         async downloadChart(chart) {
             try {
                 const response = await fetch('/api/charts/download/' + chart.name);
-                const data = await response.json();
-                if (data.success) {
-                    window.open(data.url, '_blank');
-                }
+                const blob = await response.blob();
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = chart.name;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+                setTimeout(() => URL.revokeObjectURL(link.href), 100);
+                this.showToast('Chart downloaded: ' + chart.name, 'success');
             } catch (error) {
                 console.error('Error downloading chart:', error);
-                this.showToast('Download error', 'error');
+                try {
+                    const response = await fetch(chart.url);
+                    const blob = await response.blob();
+                    const link = document.createElement('a');
+                    link.href = URL.createObjectURL(blob);
+                    link.download = chart.name;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    setTimeout(() => URL.revokeObjectURL(link.href), 100);
+                    this.showToast('Chart downloaded: ' + chart.name, 'success');
+                } catch (e) {
+                    this.showToast('Download error', 'error');
+                }
             }
         },
         
@@ -616,14 +727,18 @@ const app = new Vue({
         },
         
         toggleTheme() {
-            this.darkMode = !this.darkMode;
-            
-            if (this.darkMode) {
-                document.body.classList.remove('light-theme');
-                document.getElementById('app').classList.remove('light-theme');
+            if (ThemeManager) {
+                this.darkMode = ThemeManager.toggle();
             } else {
-                document.body.classList.add('light-theme');
-                document.getElementById('app').classList.add('light-theme');
+                // Fallback
+                this.darkMode = !this.darkMode;
+                if (this.darkMode) {
+                    document.body.classList.remove('light-theme');
+                    document.getElementById('app').classList.remove('light-theme');
+                } else {
+                    document.body.classList.add('light-theme');
+                    document.getElementById('app').classList.add('light-theme');
+                }
             }
             
             this.renderCharts();
@@ -664,5 +779,15 @@ const app = new Vue({
                 this.renderCharts();
             }, 100);
         }
+    }
+});
+
+// Слушаем изменения темы из других вкладок/приложений
+document.addEventListener('themeChanged', (e) => {
+    if (app && app.darkMode !== undefined) {
+        app.darkMode = e.detail.darkMode;
+        setTimeout(() => {
+            app.renderCharts();
+        }, 100);
     }
 });

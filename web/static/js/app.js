@@ -1,3 +1,8 @@
+// Подключаем ThemeManager
+if (typeof ThemeManager === 'undefined') {
+    console.warn('ThemeManager not loaded, using fallback');
+}
+
 const app = new Vue({
     el: '#app',
     
@@ -6,7 +11,7 @@ const app = new Vue({
             items: [],
             filteredItems: [],
             loading: false,
-            darkMode: true,
+            darkMode: ThemeManager ? ThemeManager.isDark() : true,
             viewMode: 'grid',
             searchQuery: '',
             activeFilter: 'all',
@@ -19,7 +24,8 @@ const app = new Vue({
                 { value: 'watched', label: 'Watched' },
                 { value: 'watching', label: 'Watching' },
                 { value: 'planned', label: 'Planned' },
-                { value: 'on_hold', label: 'On Hold' }
+                { value: 'on_hold', label: 'On Hold' },
+                { value: 'favorite', label: 'Favorites' }
             ],
             
             statusOptions: [
@@ -68,7 +74,14 @@ const app = new Vue({
             favorites: JSON.parse(localStorage.getItem('favorites') || '[]'),
             watchHistory: JSON.parse(localStorage.getItem('watchHistory') || '{}'),
             watchStartTime: null,
-            watchInterval: null
+            watchInterval: null,
+            
+            // Batch upload
+            showBatchAddModal: false,
+            batchFiles: [],
+            batchEditMode: true,
+            batchUploading: false,
+            isDragOver: false
         };
     },
     
@@ -127,13 +140,21 @@ const app = new Vue({
             document.body.classList.add('light-theme');
             document.getElementById('app').classList.add('light-theme');
         }
+        
+        // Слушаем изменения темы из других вкладок/приложений
+        document.addEventListener('themeChanged', this.onThemeChanged);
     },
     
     beforeDestroy() {
         this.stopWatchTimer();
+        document.removeEventListener('themeChanged', this.onThemeChanged);
     },
     
     methods: {
+        onThemeChanged(e) {
+            this.darkMode = e.detail.darkMode;
+        },
+        
         async loadItems() {
             this.loading = true;
             this.statusMessage = 'Loading...';
@@ -183,7 +204,9 @@ const app = new Vue({
         applyFilter(filterValue) {
             this.activeFilter = filterValue;
             
-            if (filterValue === 'all') {
+            if (filterValue === 'favorite') {
+                this.filteredItems = this.items.filter(item => this.favorites.includes(item.id));
+            } else if (filterValue === 'all') {
                 this.filteredItems = [...this.items];
             } else {
                 this.filteredItems = this.items.filter(
@@ -244,12 +267,55 @@ const app = new Vue({
                     lastWatched: Date.now()
                 };
             }
-            this.watchHistory[itemId].progress = Math.max(
+            const newProgress = Math.max(
                 this.watchHistory[itemId].progress || 0,
                 progress
             );
+            this.watchHistory[itemId].progress = newProgress;
             this.watchHistory[itemId].lastWatched = Date.now();
             localStorage.setItem('watchHistory', JSON.stringify(this.watchHistory));
+            
+            // Если прогресс 99%+ и статус не watched - меняем статус
+            if (newProgress >= 99) {
+                const item = this.items.find(i => i.id === itemId);
+                if (item && item.status !== 'watched') {
+                    this.changeStatusToWatched(item);
+                }
+            }
+        },
+        
+        async changeStatusToWatched(item) {
+            try {
+                const response = await fetch('/api/items/' + item.id, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        ...item,
+                        status: 'watched'
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    // Обновляем в списке
+                    const index = this.items.findIndex(i => i.id === item.id);
+                    if (index !== -1) {
+                        this.items[index].status = 'watched';
+                        this.items[index] = { ...this.items[index] };
+                    }
+                    // Обновляем текущий видео
+                    if (this.currentVideo) {
+                        this.currentVideo.status = 'watched';
+                    }
+                    // Обновляем filteredItems
+                    this.applyFilter(this.activeFilter);
+                    this.showToast('📺 Status changed to Watched', 'success');
+                }
+            } catch (error) {
+                console.error('Error updating status:', error);
+            }
         },
         
         startWatchTimer(item) {
@@ -526,7 +592,13 @@ const app = new Vue({
         onVideoEnded() {
             this.showToast('✅ Playback finished', 'info');
             if (this.currentVideo) {
+                // Обновляем прогресс до 100%
                 this.updateWatchTime(this.currentVideo.id, 100);
+                
+                // Автоматически меняем статус на WATCHED, если он не WATCHED
+                if (this.currentVideo.status !== 'watched') {
+                    this.changeStatusToWatched(this.currentVideo);
+                }
             }
             this.stopWatchTimer();
         },
@@ -562,16 +634,20 @@ const app = new Vue({
         },
         
         toggleTheme() {
-            this.darkMode = !this.darkMode;
-            
-            if (this.darkMode) {
-                document.body.classList.remove('light-theme');
-                document.body.style.background = '#0A0A0A';
-                document.getElementById('app').classList.remove('light-theme');
+            if (ThemeManager) {
+                this.darkMode = ThemeManager.toggle();
             } else {
-                document.body.classList.add('light-theme');
-                document.body.style.background = '#f5f5f5';
-                document.getElementById('app').classList.add('light-theme');
+                // Fallback
+                this.darkMode = !this.darkMode;
+                if (this.darkMode) {
+                    document.body.classList.remove('light-theme');
+                    document.body.style.background = '#0A0A0A';
+                    document.getElementById('app').classList.remove('light-theme');
+                } else {
+                    document.body.classList.add('light-theme');
+                    document.body.style.background = '#f5f5f5';
+                    document.getElementById('app').classList.add('light-theme');
+                }
             }
         },
         
@@ -610,6 +686,7 @@ const app = new Vue({
                     this.selectedItem = null;
                     this.showAddModal = false;
                     this.showStatsModal = false;
+                    this.showBatchAddModal = false;
                     if (this.showPlayer) {
                         this.closePlayer();
                     }
@@ -649,6 +726,195 @@ const app = new Vue({
                     }
                 }
             });
+        },
+        
+        // ==================== BATCH UPLOAD METHODS ====================
+        
+        openBatchAddModal() {
+            this.batchFiles = [];
+            this.batchEditMode = true;
+            this.batchUploading = false;
+            this.showBatchAddModal = true;
+        },
+        
+        closeBatchAddModal() {
+            this.showBatchAddModal = false;
+            this.batchFiles = [];
+            this.batchUploading = false;
+        },
+        
+        dragEnter(event) {
+            event.preventDefault();
+            this.isDragOver = true;
+        },
+        
+        dragLeave(event) {
+            event.preventDefault();
+            this.isDragOver = false;
+        },
+        
+        handleBatchDrop(event) {
+            this.isDragOver = false;
+            const files = event.dataTransfer.files;
+            this.processBatchFiles(files);
+        },
+        
+        handleBatchFiles(event) {
+            const files = event.target.files;
+            this.processBatchFiles(files);
+            event.target.value = '';
+        },
+        
+        processBatchFiles(files) {
+            const validExtensions = ['mp4', 'avi', 'mkv', 'mov', 'webm', 'm4v', 'mpg', 'mpeg'];
+            
+            for (let file of files) {
+                const ext = file.name.split('.').pop().toLowerCase();
+                if (!validExtensions.includes(ext)) {
+                    this.showToast('Skipping unsupported file: ' + file.name, 'error');
+                    continue;
+                }
+                
+                const duplicate = this.batchFiles.find(f => f.name === file.name && f.size === file.size);
+                if (duplicate) {
+                    this.showToast('Skipping duplicate: ' + file.name, 'info');
+                    continue;
+                }
+                
+                const fileName = file.name.replace(/\.[^/.]+$/, '');
+                this.batchFiles.push({
+                    file: file,
+                    name: file.name,
+                    size: file.size,
+                    metadata: {
+                        title: fileName,
+                        year: new Date().getFullYear(),
+                        rating: 5.0,
+                        genres: '',
+                        authors: '',
+                        description: '',
+                        status: 'planned'
+                    }
+                });
+            }
+            
+            if (this.batchFiles.length > 0) {
+                this.showToast('Added ' + this.batchFiles.length + ' files', 'success');
+            }
+        },
+        
+        removeBatchFile(index) {
+            this.batchFiles.splice(index, 1);
+        },
+        
+        clearBatchFiles() {
+            if (this.batchFiles.length === 0) return;
+            if (!confirm('Remove all ' + this.batchFiles.length + ' files?')) return;
+            this.batchFiles = [];
+            this.showToast('Cleared all files', 'info');
+        },
+        
+        toggleBatchEditMode() {
+            this.batchEditMode = !this.batchEditMode;
+        },
+        
+        async uploadBatchFiles() {
+            if (this.batchFiles.length === 0) {
+                this.showToast('No files to upload', 'error');
+                return;
+            }
+            
+            this.batchUploading = true;
+            let successCount = 0;
+            let failCount = 0;
+            
+            for (let i = 0; i < this.batchFiles.length; i++) {
+                const batchFile = this.batchFiles[i];
+                
+                try {
+                    const formData = new FormData();
+                    formData.append('video', batchFile.file);
+                    
+                    const uploadResponse = await fetch('/api/upload', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const uploadData = await uploadResponse.json();
+                    
+                    if (!uploadData.success) {
+                        failCount++;
+                        this.showToast('Failed to upload: ' + batchFile.name + ' - ' + (uploadData.error || 'Unknown error'), 'error');
+                        continue;
+                    }
+                    
+                    const itemData = {
+                        title: batchFile.metadata.title || batchFile.name.replace(/\.[^/.]+$/, ''),
+                        year: batchFile.metadata.year || new Date().getFullYear(),
+                        rating: batchFile.metadata.rating || 5.0,
+                        status: batchFile.metadata.status || 'planned',
+                        genres: batchFile.metadata.genres ? batchFile.metadata.genres.split(',').map(g => g.trim()).filter(g => g) : [],
+                        authors: batchFile.metadata.authors ? batchFile.metadata.authors.split(',').map(a => a.trim()).filter(a => a) : [],
+                        description: batchFile.metadata.description || '',
+                        video_path: '/api/video/' + uploadData.filename,
+                        duration: uploadData.duration_minutes || 0
+                    };
+                    
+                    const itemResponse = await fetch('/api/items', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(itemData)
+                    });
+                    
+                    const itemDataResult = await itemResponse.json();
+                    
+                    if (itemDataResult.success) {
+                        successCount++;
+                        this.items.push({ 
+                            ...itemDataResult.item, 
+                            favorite: false,
+                            isUrl: false
+                        });
+                    } else {
+                        failCount++;
+                        this.showToast('Failed to add: ' + batchFile.name + ' - ' + (itemDataResult.error || 'Unknown error'), 'error');
+                    }
+                    
+                    this.statusMessage = 'Uploading ' + (i + 1) + '/' + this.batchFiles.length + '...';
+                    
+                } catch (error) {
+                    console.error('Error uploading batch file:', error);
+                    failCount++;
+                    this.showToast('Error uploading: ' + batchFile.name, 'error');
+                }
+            }
+            
+            this.batchUploading = false;
+            
+            this.applyFilter(this.activeFilter);
+            this.loadStats();
+            
+            if (successCount > 0) {
+                this.showToast('Successfully uploaded ' + successCount + ' files' + (failCount > 0 ? ', ' + failCount + ' failed' : ''), 'success');
+            } else {
+                this.showToast('All files failed to upload', 'error');
+            }
+            
+            if (failCount === 0 && successCount > 0) {
+                this.closeBatchAddModal();
+            }
+            
+            this.statusMessage = 'Uploaded ' + successCount + ' files';
+        },
+        
+        formatFileSize(bytes) {
+            if (!bytes || bytes === 0) return '0 B';
+            if (bytes < 1024) return bytes + ' B';
+            if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+            if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+            return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
         }
     },
     
@@ -658,5 +924,12 @@ const app = new Vue({
                 this.applyFilter(this.activeFilter);
             }
         }
+    }
+});
+
+// Слушаем изменения темы из других вкладок/приложений
+document.addEventListener('themeChanged', (e) => {
+    if (app && app.darkMode !== undefined) {
+        app.darkMode = e.detail.darkMode;
     }
 });
