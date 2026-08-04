@@ -1,11 +1,6 @@
 
 <div align="center">
 
-<!-- ===== HEADER ===== -->
-<table border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%;">
-<tr>
-<td style="padding: 30px;">
-
 # MediaTracker
 
 > Smart media collection manager with modern web interface, video playback, and analytics.
@@ -14,10 +9,6 @@
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Flask](https://img.shields.io/badge/Flask-2.3+-green.svg)](https://flask.palletsprojects.com/)
 [![Vue.js](https://img.shields.io/badge/Vue.js-2.7-4FC08D.svg)](https://vuejs.org/)
-
-</td>
-</tr>
-</table>
 
 </div>
 
