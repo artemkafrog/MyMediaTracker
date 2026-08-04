@@ -9,6 +9,8 @@
 [![Python 3.8+](https://img.shields.io/badge/python-3.8+-blue.svg)](https://www.python.org/downloads/)
 [![Flask](https://img.shields.io/badge/Flask-2.3+-green.svg)](https://flask.palletsprojects.com/)
 [![Vue.js](https://img.shields.io/badge/Vue.js-2.7-4FC08D.svg)](https://vuejs.org/)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-Now-orange.svg)](https://mediatracker-j29q.onrender.com)
+
 
 </div>
 
