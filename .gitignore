@@ -1,23 +1,42 @@
-# byte-compiled
+# Python
 __pycache__/
-
-# enviroments
+*.py[cod]
+*$py.class
+*.so
+.Python
 venv/
-
-# db
-data/*.db
-data/*.db-journal
+env/
+ENV/
+*.egg-info/
+dist/
+build/
 *.db
 *.db-journal
 
-# backups
-backups/
-*.bak
+# Tauri
+src-tauri/target/
+src-tauri/.cargo/
 
-# exports
-exports/*.csv
+# Node
+node_modules/
+package-lock.json
 
-# videos
-thumbnails/
+# App specific
 uploads/
+thumbnails/
 reports/
+exports/
+backups/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,14 +1,17 @@
 import re
+import hashlib
 import unicodedata
-from src.functionality.media import MediaItem
-from src.functionality.enums import MediaType, Status, Genre
-from src.functionality.exceptions import DuplicateError, ValidationError, NotFoundError
+from typing import Optional, Set
 from secrets import randbits
 from rapidfuzz import process, fuzz
 
+from src.functionality.media import MediaItem
+from src.functionality.enums import MediaType, Status, Genre
+from src.functionality.exceptions import DuplicateError, ValidationError, NotFoundError
+
 NOISE = {
-    "фильм", "смотреть", "онлайн", "скачать", "бесплатно", "кино", 
-    "сериал", "книга", "читать", "скачать", "купить", "новый", 
+    "фильм", "смотреть", "онлайн", "скачать", "бесплатно", "кино",
+    "сериал", "книга", "читать", "купить", "новый",
     "лучший", "популярный", "топ", "сезон", "серия",
     "movie", "film", "watch", "online", "download", "free", "cinema",
     "series", "tv", "show", "book", "read", "buy", "new", "best",
@@ -17,10 +20,12 @@ NOISE = {
 }
 
 class MediaCatalog:
+    """In-memory catalog for media items with indexing and search."""
+
     def __init__(self):
         self._items: dict[int, MediaItem] = {}
         self._by_status: dict[Status, set[int]] = {
-            Status.WATCHED: set(),  
+            Status.WATCHED: set(),
             Status.WATCHING: set(),
             Status.PLANNED: set(),
             Status.ON_HOLD: set()
@@ -32,23 +37,25 @@ class MediaCatalog:
         self._title_index: dict[str, set[int]] = {}
         self._author_index: dict[str, set[int]] = {}
 
+    def _generate_item_id(self, item: MediaItem) -> int:
+        """Generate a stable ID for an item."""
+        item_id = int(hashlib.md5(item.title.lower().encode()).hexdigest()[:8], 16)
+        while item_id in self._items:
+            item_id = item_id ^ (int(hashlib.md5(str(len(self._items)).encode()).hexdigest()[:4], 16) or 1)
+        return item_id
+
     def add_item(self, item: MediaItem) -> int:
+        """Add a media item to the catalog."""
         duplicates = [existing for existing in self._items.values()
                       if existing.title.lower() == item.title.lower()
                       and isinstance(existing, type(item))]
         if duplicates:
             raise DuplicateError("This item already exists.")
 
-        # Используем ID из БД, если он есть
         if hasattr(item, '_db_id') and item._db_id:
             item_id = item._db_id
         else:
-            # Генерируем стабильный ID на основе заголовка
-            import hashlib
-            item_id = int(hashlib.md5(item.title.lower().encode()).hexdigest()[:8], 16)
-            # Если есть коллизия, добавляем случайное число
-            while item_id in self._items:
-                item_id = item_id ^ (int(hashlib.md5(str(len(self._items)).encode()).hexdigest()[:4], 16) or 1)
+            item_id = self._generate_item_id(item)
 
         self._items[item_id] = item
         self._by_status[item.status].add(item_id)
@@ -67,25 +74,28 @@ class MediaCatalog:
         return item_id
 
     def get_item(self, item_id: int) -> MediaItem:
+        """Retrieve an item by ID."""
         if item_id in self._items:
             return self._items[item_id]
         raise NotFoundError(f"The item with ID {item_id} does not exist.")
 
-    def _index_title(self, title: str, item_id: int):
+    def _index_title(self, title: str, item_id: int) -> None:
+        """Index item title for search."""
         clean_title = self._clean_title(title)
         words = clean_title.split()
-        
+
         for word in words:
-            if len(word) > 2: 
+            if len(word) > 2:
                 if word not in self._title_index:
                     self._title_index[word] = set()
                 self._title_index[word].add(item_id)
-        
+
         if clean_title not in self._title_index:
             self._title_index[clean_title] = set()
         self._title_index[clean_title].add(item_id)
 
-    def _index_authors(self, authors: list[str], item_id: int):
+    def _index_authors(self, authors: list[str], item_id: int) -> None:
+        """Index item authors for search."""
         for author in authors:
             clean_author = author.lower().strip()
             if clean_author:
@@ -94,70 +104,77 @@ class MediaCatalog:
                 self._author_index[clean_author].add(item_id)
 
     def _get_media_type(self, item: MediaItem) -> MediaType:
+        """Determine media type of an item."""
         return MediaType.VIDEO
 
     def get_by_status(self, status: Status) -> list[MediaItem]:
+        """Get items by status."""
         ids = self._by_status.get(status, set())
         return [self._items[id] for id in ids if id in self._items]
 
     def get_by_type(self, media_type: MediaType) -> list[MediaItem]:
+        """Get items by media type."""
         ids = self._by_type.get(media_type, set())
         return [self._items[id] for id in ids if id in self._items]
 
     def get_by_genres(self, genre: str) -> list[MediaItem]:
+        """Get items by genre."""
         genre = genre.lower()
         ids = self._by_genre.get(genre, set())
         return [self._items[id] for id in ids if id in self._items]
 
     def get_by_author(self, author: str) -> list[MediaItem]:
+        """Get items by author."""
         author = author.lower().strip()
         ids = self._author_index.get(author, set())
         return [self._items[id] for id in ids if id in self._items]
 
     def get_top_rated(self, n: int, media_type: MediaType = None) -> list[MediaItem]:
+        """Get top N rated items."""
         if media_type:
             items = self.get_by_type(media_type)
         else:
             items = list(self._items.values())
 
         if len(items) < n:
-            raise ValidationError("Not enough items in the catalog") 
+            raise ValidationError("Not enough items in the catalog")
         sorted_items = sorted([item for item in items], key=lambda x: x.rating, reverse=True)
         return sorted_items[:n]
-        
+
     def search_item(self, query: str = "", **kwargs) -> MediaItem:
+        """Search for a single item matching the query."""
         if not query:
             raise ValidationError("Search query cannot be empty")
-        
+
         try:
             parsed_query = self._parse_query(query)
-            
-            has_filters = (parsed_query.get("genre") or parsed_query.get("media_type") or 
-                          parsed_query.get("year") or parsed_query.get("author"))
-            
+
+            has_filters = (parsed_query.get("genre") or parsed_query.get("media_type") or
+                           parsed_query.get("year") or parsed_query.get("author"))
+
             if has_filters:
                 candidates = set(self._items.keys())
-                
+
                 if parsed_query.get("media_type"):
                     type_ids = self._by_type.get(parsed_query["media_type"], set())
                     candidates &= type_ids
-                
+
                 if parsed_query.get("genre"):
                     genre_ids = self._by_genre.get(parsed_query["genre"].lower(), set())
                     candidates &= genre_ids
-                
+
                 if parsed_query.get("year"):
                     year = parsed_query["year"]
                     candidates = {
-                        id for id in candidates 
+                        id for id in candidates
                         if self._items[id].release_date.year == year
                     }
-                
+
                 if parsed_query.get("author"):
                     author = parsed_query["author"].lower().strip()
                     author_ids = self._author_index.get(author, set())
                     candidates &= author_ids
-                
+
                 if parsed_query.get("title"):
                     title = parsed_query["title"]
                     title_candidates = self._find_by_title(title, candidates)
@@ -177,7 +194,7 @@ class MediaCatalog:
                                     return best[0]
                             except Exception:
                                 pass
-                
+
                 if not candidates:
                     raise NotFoundError(f"No items found for query")
                 return self._items[next(iter(candidates))]
@@ -190,26 +207,27 @@ class MediaCatalog:
             raise NotFoundError(f"No items found for: {query}")
 
     def _search_by_title(self, title: str) -> MediaItem:
+        """Search for an item by title using fuzzy matching."""
         if not title:
             raise ValidationError("Search title cannot be empty")
-        
+
         catalog = list(self._items.values())
-        
+
         if not catalog:
             raise NotFoundError("Catalog is empty")
-        
+
         try:
             title_lower = title.lower()
             found_ids = set()
             for word in title_lower.split():
                 if word in self._title_index:
                     found_ids.update(self._title_index[word])
-            
+
             if found_ids:
-                best_item = max([self._items[id] for id in found_ids], 
-                            key=lambda x: fuzz.WRatio(title_lower, x.title.lower()))
+                best_item = max([self._items[id] for id in found_ids],
+                                key=lambda x: fuzz.WRatio(title_lower, x.title.lower()))
                 return best_item
-            
+
             try:
                 best_matched = process.extractOne(
                     title,
@@ -219,8 +237,8 @@ class MediaCatalog:
                 )
             except Exception:
                 best_matched = None
-            
-            if not best_matched or best_matched[1] < 60:  
+
+            if not best_matched or best_matched[1] < 60:
                 clean_title = self._clean_title(title)
                 try:
                     best_matched = process.extractOne(
@@ -231,10 +249,10 @@ class MediaCatalog:
                     )
                 except Exception:
                     best_matched = None
-                
+
                 if not best_matched or best_matched[1] < 50:
                     raise NotFoundError(f"No items found for: {title}")
-            
+
             return best_matched[0]
         except NotFoundError:
             raise
@@ -242,59 +260,55 @@ class MediaCatalog:
             raise NotFoundError(f"No items found for: {title}")
 
     def _find_by_title(self, title: str, candidate_ids: set) -> set:
+        """Find items by title within a candidate set."""
         title_lower = title.lower()
         found_ids = set()
-        
+
         for word in title_lower.split():
             if len(word) > 2 and word in self._title_index:
                 found_ids.update(self._title_index[word] & candidate_ids)
-        
+
         return found_ids
 
     def search_all(self, query: str = "") -> list[MediaItem]:
+        """Search all items matching the query."""
         if not query:
             return list(self._items.values())
-        
+
         catalog = list(self._items.values())
         if not catalog:
             return []
-        
+
         query_lower = query.lower()
-        
+
+        # Check if query is a genre search
         genres_list = [
-            "comedy", "drama", "action", "thriller", "horror", 
+            "comedy", "drama", "action", "thriller", "horror",
             "sci-fi", "fantasy", "romance", "adventure", "mystery",
-            "biography", "documentary", "history", "western", 
-            "musical", "family", "комедия", "драма", "боевик", 
+            "biography", "documentary", "history", "western",
+            "musical", "family", "комедия", "драма", "боевик",
             "триллер", "ужасы", "фантастика", "фэнтези", "романтика",
             "приключения", "детектив", "биография", "документальный",
             "исторический", "вестерн", "мюзикл", "семейный"
         ]
-        
-        is_genre_search = False
-        search_genre = None
+
         for genre in genres_list:
             if genre in query_lower:
-                is_genre_search = True
-                search_genre = genre
-                break
-        
-        if is_genre_search and search_genre:
-            results = []
-            for item in catalog:
-                try:
-                    if hasattr(item, 'genres'):
-                        for g in item.genres:
-                            if search_genre in g.lower() or g.lower() in search_genre:
-                                results.append(item)
-                                break
-                except Exception:
-                    continue
-            return results
-        
+                results = []
+                for item in catalog:
+                    try:
+                        if hasattr(item, 'genres'):
+                            for g in item.genres:
+                                if genre in g.lower() or g.lower() in genre:
+                                    results.append(item)
+                                    break
+                    except Exception:
+                        continue
+                return results
+
         try:
             parsed_query = self._parse_query(query)
-            
+
             if parsed_query.get("genre"):
                 genre = parsed_query["genre"].lower()
                 results = []
@@ -305,7 +319,7 @@ class MediaCatalog:
                     except Exception:
                         continue
                 return results
-            
+
             if parsed_query.get("author"):
                 author = parsed_query["author"].lower().strip()
                 results = []
@@ -320,11 +334,11 @@ class MediaCatalog:
                         continue
                 if results:
                     return results
-            
+
             title = parsed_query.get("title", "")
             if not title:
                 return catalog
-            
+
             try:
                 matches = process.extract(
                     title,
@@ -341,6 +355,7 @@ class MediaCatalog:
             return []
 
     def _clean_title(self, title: str) -> str:
+        """Clean and normalize a title for indexing."""
         try:
             title_clean = re.sub(r'[^\w\s]', '', title)
             title_clean = title_clean.lower()
@@ -351,6 +366,7 @@ class MediaCatalog:
             return title.lower()
 
     def _clean_query(self, query: str) -> list[str]:
+        """Clean and tokenize a search query."""
         try:
             query_normalized = unicodedata.normalize('NFKD', query).encode('ascii', 'ignore').decode('utf-8')
             query_clean = re.sub(r'[^\w\s]', '', query_normalized.lower())
@@ -358,7 +374,8 @@ class MediaCatalog:
         except Exception:
             return query.lower().split()
 
-    def _parse_query(self, query: str) -> dict[str, str]:
+    def _parse_query(self, query: str) -> dict[str, str | int | None]:
+        """Parse a search query into structured components."""
         parsed_query = {
             "title": "",
             "year": None,
@@ -366,10 +383,11 @@ class MediaCatalog:
             "genre": None,
             "author": None
         }
-        
+
         try:
             query_lower = query.lower()
-            
+
+            # Genre detection (Russian/English mapping)
             genres = {
                 "comedy": "комедия",
                 "drama": "драма",
@@ -388,33 +406,36 @@ class MediaCatalog:
                 "musical": "мюзикл",
                 "family": "семейный"
             }
-            
+
             for eng, rus in genres.items():
                 if eng in query_lower or rus in query_lower:
                     parsed_query["genre"] = rus
                     query = query.replace(eng, "").replace(rus, "")
                     query_lower = query_lower.replace(eng, "").replace(rus, "")
                     break
-            
+
+            # Author detection
             author_match = re.search(r'(?:author|автор|by)\s*[:\s]+([^\s,]+(?:\s+[^\s,]+)*)', query_lower)
             if author_match:
                 parsed_query["author"] = author_match.group(1).strip()
                 query = query.replace(author_match.group(0), "")
                 query_lower = query_lower.replace(author_match.group(0), "")
-            
+
+            # Year detection
             year_match = re.search(r'\b(19\d{2}|20\d{2})\b', query)
             if year_match and len(query.split()) > 1:
                 start, end = year_match.span()
-                if (start == 0 or not query[start-1].isdigit()) and \
-                (end == len(query) or not query[end].isdigit()):
+                if (start == 0 or not query[start - 1].isdigit()) and \
+                        (end == len(query) or not query[end].isdigit()):
                     parsed_query["year"] = int(year_match.group(0))
                     query = query.replace(year_match.group(0), "")
                     query_lower = query_lower.replace(year_match.group(0), "")
-            
+
+            # Media type detection
             type_keywords = {
                 MediaType.VIDEO: {"video", "видео", "ролик", "clip", "film", "movie", "фильм"}
             }
-            
+
             for media_type, keywords in type_keywords.items():
                 found = False
                 for keyword in keywords:
@@ -426,59 +447,62 @@ class MediaCatalog:
                         break
                 if found:
                     break
-            
+
+            # Extract remaining title
             tokens = self._clean_query(query)
             clean_tokens = [token for token in tokens if token not in NOISE and len(token) > 1]
-            
+
             if clean_tokens:
                 parsed_query["title"] = " ".join(clean_tokens)
             elif query.strip() and not parsed_query.get("year") and not parsed_query.get("genre") and not parsed_query.get("author"):
                 parsed_query["title"] = query.strip()
-                
+
         except Exception:
             parsed_query["title"] = query
-        
+
         return parsed_query
 
     def remove_item(self, item_id: int) -> None:
+        """Remove an item from the catalog."""
         if item_id not in self._items:
             raise NotFoundError(f"Item with ID {item_id} not found")
-        
+
         item = self._items[item_id]
         self._by_status[item.status].discard(item_id)
-        
+
         media_type = self._get_media_type(item)
         if media_type:
             self._by_type[media_type].discard(item_id)
-        
+
         for genre in item.genres:
             genre_lower = genre.lower()
             if genre_lower in self._by_genre:
                 self._by_genre[genre_lower].discard(item_id)
                 if not self._by_genre[genre_lower]:
                     del self._by_genre[genre_lower]
-        
+
         for author in item.authors:
             author_lower = author.lower().strip()
             if author_lower in self._author_index:
                 self._author_index[author_lower].discard(item_id)
                 if not self._author_index[author_lower]:
                     del self._author_index[author_lower]
-        
+
         for key in list(self._title_index.keys()):
             self._title_index[key].discard(item_id)
             if not self._title_index[key]:
                 del self._title_index[key]
-        
+
         del self._items[item_id]
 
     def update_status(self, item_id: int, new_status: Status) -> None:
+        """Update the status of an item."""
         if item_id not in self._items:
             raise NotFoundError(f"Item with ID {item_id} not found")
-        
+
         item = self._items[item_id]
         old_status = item.status
-        
+
         if old_status != new_status:
             self._by_status[old_status].discard(item_id)
             self._by_status[new_status].add(item_id)

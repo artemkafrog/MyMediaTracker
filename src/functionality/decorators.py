@@ -1,7 +1,9 @@
 import time
 from functools import wraps
 
+
 def timing(func):
+    """Decorator to measure function execution time."""
     @wraps(func)
     def wrapper(*args, **kwargs):
         t_start = time.perf_counter()
@@ -12,8 +14,11 @@ def timing(func):
         return result
     return wrapper
 
+
 def cache_result(func):
+    """Decorator to cache function results based on arguments."""
     cache = {}
+
     @wraps(func)
     def wrapper(*args):
         if args in cache:
@@ -21,4 +26,5 @@ def cache_result(func):
         result = func(*args)
         cache[args] = result
         return result
+
     return wrapper

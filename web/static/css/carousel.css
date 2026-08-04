@@ -1,4 +1,4 @@
-/* ==================== КАРУСЕЛЬ ==================== */
+/* ==================== CAROUSEL MAIN ==================== */
 
 .carousel-main {
     flex: 1;
@@ -29,7 +29,7 @@
     background: rgba(255, 255, 255, 0.04) !important;
 }
 
-/* ==================== КОНТЕЙНЕР КАРУСЕЛИ ==================== */
+/* ==================== CAROUSEL CONTAINER ==================== */
 
 .carousel-container {
     position: relative !important;
@@ -70,15 +70,16 @@
     align-items: center !important;
     gap: 16px !important;
     transition: transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) !important;
-    padding: 0 20px !important;
+    padding: 0 !important;
     will-change: transform;
+    position: relative;
 }
 
 .carousel-track.dragging {
     transition: none !important;
 }
 
-/* ==================== СЛАЙД ==================== */
+/* ==================== SLIDE ==================== */
 
 .video-slide {
     flex: 0 0 320px;
@@ -130,7 +131,7 @@
     box-shadow: 0 20px 80px rgba(0, 0, 0, 0.6);
 }
 
-/* ==================== ПРЕВЬЮ ==================== */
+/* ==================== PREVIEW ==================== */
 
 .slide-preview {
     height: 230px;
@@ -150,7 +151,7 @@
     left: 0;
     right: 0;
     height: 60%;
-    background: linear-gradient(to top, 
+    background: linear-gradient(to top,
         #141414 0%,
         transparent 100%
     );
@@ -193,7 +194,7 @@
     z-index: 2;
 }
 
-/* ==================== КОНТЕНТ СЛАЙДА ==================== */
+/* ==================== SLIDE CONTENT ==================== */
 
 .slide-content {
     padding: 16px 20px 18px;
@@ -296,7 +297,7 @@
     background: rgba(239, 83, 80, 0.1);
 }
 
-/* ==================== КНОПКИ НАВИГАЦИИ ==================== */
+/* ==================== NAVIGATION BUTTONS ==================== */
 
 .nav-btn {
     position: absolute;
@@ -339,7 +340,7 @@
     right: 24px;
 }
 
-/* ==================== ИНДИКАТОРЫ ==================== */
+/* ==================== INDICATORS ==================== */
 
 .indicators {
     display: flex;
@@ -369,7 +370,7 @@
     width: 40px;
 }
 
-/* ==================== СТАТИСТИКА ==================== */
+/* ==================== STATISTICS ==================== */
 
 .carousel-stats {
     display: flex;
@@ -390,7 +391,7 @@
     background: transparent;
 }
 
-/* ==================== ПУСТОЕ СОСТОЯНИЕ ==================== */
+/* ==================== EMPTY STATE ==================== */
 
 .empty-carousel {
     display: flex;
@@ -419,7 +420,7 @@
     color: #6B6B6B;
 }
 
-/* ==================== ПРОДОЛЖИТЬ ПРОСМОТР ==================== */
+/* ==================== CONTINUE WATCHING ==================== */
 
 .continue-watching {
     position: absolute;
@@ -512,7 +513,7 @@
     color: #A1A1A1;
 }
 
-/* ==================== ВИДЕО IFRAME ==================== */
+/* ==================== VIDEO IFRAME ==================== */
 
 .video-iframe-container {
     position: relative;
@@ -532,7 +533,7 @@
     border-radius: 10px;
 }
 
-/* ==================== СВЕТЛАЯ ТЕМА ==================== */
+/* ==================== LIGHT THEME ==================== */
 
 .light-theme .carousel-main {
     background: #F7F7F7;
@@ -566,7 +567,7 @@
 }
 
 .light-theme .slide-preview::after {
-    background: linear-gradient(to top, 
+    background: linear-gradient(to top,
         #FFFFFF 0%,
         transparent 100%
     );
@@ -710,7 +711,7 @@
     background: rgba(0, 0, 0, 0.03) !important;
 }
 
-/* ===== АДАПТИВНОСТЬ ===== */
+/* ===== RESPONSIVE ===== */
 
 @media (max-width: 1200px) {
     .video-slide {

@@ -6,6 +6,8 @@ from datetime import date
 from src.functionality.decorators import cache_result
 
 class AnalyticsDataLoader:
+    """Loads and processes analytics data from the database."""
+
     def __init__(self, db_path: str = "data/media_tracker.db"):
         self._db_path = db_path
         self._data = None
@@ -16,6 +18,7 @@ class AnalyticsDataLoader:
 
     @cache_result
     def load_all_data(self) -> pd.DataFrame:
+        """Load all media items from database into a DataFrame."""
         if not Path(self.db_path).exists():
             raise FileNotFoundError(f"Database not found: {self.db_path}")
 
@@ -24,11 +27,11 @@ class AnalyticsDataLoader:
         df = pd.read_sql_query(query, conn)
         conn.close()
 
-        # Преобразуем release_date из строки в date
+        # Convert release_date from string to date
         if 'release_date' in df.columns:
             df['release_date'] = pd.to_datetime(df['release_date']).dt.date
-        
-        # Преобразуем JSON поля
+
+        # Parse JSON fields
         df['genres'] = df['genres'].apply(
             lambda x: json.loads(x) if x and x != "null" else []
         )
@@ -41,31 +44,34 @@ class AnalyticsDataLoader:
             lambda x: (today - x).days if x else 0
         )
         df['release_year'] = df['release_date'].apply(
-           lambda d: d.year if d else 0
+            lambda d: d.year if d else 0
         )
 
         self._data = df
         return df
 
     def get_genre_exploded(self) -> pd.DataFrame:
+        """Return DataFrame with one genre per row."""
         if self._data is None:
             raise ValueError("Data not loaded. Call load_all_data() first.")
 
         df_exploded = self._data.copy()
         df_exploded = df_exploded.explode('genres')
-        df_exploded = df_exploded.rename(columns={'genres' : 'genre'})
+        df_exploded = df_exploded.rename(columns={'genres': 'genre'})
         df_exploded = df_exploded[df_exploded['genre'] != '']
         df_exploded = df_exploded[df_exploded['genre'].notna()]
-        
+
         return df_exploded
 
     def get_stats_dataframe(self) -> dict[str, pd.DataFrame | dict]:
+        """Generate statistical summary DataFrames."""
         if self._data is None:
             raise ValueError("Data not loaded. Call load_all_data() first.")
 
         df = self._data
         result = {}
 
+        # Summary metrics
         summary = pd.DataFrame({
             'metric': [
                 'total_items',
@@ -94,6 +100,7 @@ class AnalyticsDataLoader:
         })
         result['summary'] = summary
 
+        # Group by status
         by_status = df.groupby('status').agg({
             'id': 'count',
             'rating': ['mean', 'min', 'max']
@@ -101,7 +108,8 @@ class AnalyticsDataLoader:
         by_status.columns = ['count', 'avg_rating', 'min_rating', 'max_rating']
         by_status = by_status.reset_index()
         result['by_status'] = by_status
-        
+
+        # Group by genre
         df_exploded = self.get_genre_exploded()
         if not df_exploded.empty:
             by_genre = df_exploded.groupby('genre').agg({
@@ -114,7 +122,8 @@ class AnalyticsDataLoader:
             result['by_genre'] = by_genre
         else:
             result['by_genre'] = pd.DataFrame(columns=['genre', 'count', 'avg_rating'])
-        
+
+        # Group by release year
         by_year = df.groupby('release_year').agg({
             'id': 'count',
             'rating': 'mean'
@@ -123,10 +132,12 @@ class AnalyticsDataLoader:
         by_year = by_year.reset_index()
         by_year = by_year[by_year['release_year'] > 0]
         result['by_year'] = by_year
-        
+
+        # Top rated items
         top_rated = df.nlargest(10, 'rating')[['id', 'title', 'rating', 'status', 'genres']]
         result['top_rated'] = top_rated
-        
+
+        # Duration statistics
         result['duration_stats'] = {
             'min': df['duration'].min(),
             'max': df['duration'].max(),
@@ -134,15 +145,16 @@ class AnalyticsDataLoader:
             'median': df['duration'].median(),
             'total': df['duration'].sum()
         }
-        
+
         return result
 
     def get_correlation_matrix(self) -> pd.DataFrame:
+        """Compute correlation matrix for numeric features."""
         if self._data is None:
             raise ValueError("Data not loaded. Call load_all_data() first.")
-    
+
         df = self._data.copy()
         df['num_genres'] = df['genres'].apply(len)
-        
+
         numeric_cols = ['rating', 'duration', 'days_since_release', 'release_year', 'num_genres']
         return df[numeric_cols].corr()

@@ -1,11 +1,11 @@
-// Подключаем ThemeManager
+// Connect ThemeManager
 if (typeof ThemeManager === 'undefined') {
     console.warn('ThemeManager not loaded, using fallback');
 }
 
 const app = new Vue({
     el: '#app',
-    
+
     data() {
         return {
             items: [],
@@ -15,17 +15,17 @@ const app = new Vue({
             searchQuery: '',
             activeFilter: 'all',
             statusMessage: 'Ready',
-            
+
             currentIndex: 0,
             dragStartX: 0,
             dragCurrentX: 0,
             isDragging: false,
             swipeThreshold: 50,
-            
+
             autoPlayEnabled: true,
             autoPlayInterval: null,
             autoPlayDelay: 15000,
-            
+
             filters: [
                 { value: 'all', label: 'All' },
                 { value: 'watched', label: 'Watched' },
@@ -34,19 +34,19 @@ const app = new Vue({
                 { value: 'on_hold', label: 'On Hold' },
                 { value: 'favorite', label: 'Favorites' }
             ],
-            
+
             statusOptions: [
                 { value: 'watched', label: 'Watched' },
                 { value: 'watching', label: 'Watching' },
                 { value: 'planned', label: 'Planned' },
                 { value: 'on_hold', label: 'On Hold' }
             ],
-            
+
             showAddModal: false,
             showPlayer: false,
             selectedItem: null,
             currentVideo: null,
-            
+
             newItem: {
                 title: '',
                 year: new Date().getFullYear(),
@@ -59,22 +59,22 @@ const app = new Vue({
                 video_url: '',
                 status: 'planned'
             },
-            
+
             currentTime: '00:00',
             totalDuration: '00:00',
             isFullscreen: false,
             playerWidth: 80,
             playerHeight: 60,
-            
+
             toasts: [],
             toastId: 0,
-            
+
             favorites: JSON.parse(localStorage.getItem('favorites') || '[]'),
             watchHistory: JSON.parse(localStorage.getItem('watchHistory') || '{}'),
             watchStartTime: null,
             watchInterval: null,
             watchTime: {},
-            
+
             // Batch upload
             showBatchAddModal: false,
             batchFiles: [],
@@ -83,7 +83,7 @@ const app = new Vue({
             isDragOver: false
         };
     },
-    
+
     computed: {
         themeIcon() {
             return this.darkMode ? '🌙' : '☀️';
@@ -98,7 +98,7 @@ const app = new Vue({
             };
             return (status) => labels[status] || status;
         },
-        
+
         formatDuration() {
             return (minutes) => {
                 if (!minutes || minutes === 0) return 'N/A';
@@ -108,50 +108,52 @@ const app = new Vue({
                 return hours + 'h ' + mins + 'm';
             };
         },
-        
+
         activeIndex() {
-            return this.currentIndex % this.filteredItems.length;
+            return ((this.currentIndex % this.filteredItems.length) + this.filteredItems.length) % this.filteredItems.length;
         },
-        
+
         displayItems() {
             return this.filteredItems;
         },
-        
+
         trackStyle() {
             if (this.filteredItems.length === 0) return {};
-            
+
             const container = this.$refs.carouselContainer;
             if (!container) return {};
-            
+
             const containerWidth = container.offsetWidth || 800;
             const cardWidth = this.getCardWidth();
             const gap = this.getGap();
             const totalWidth = cardWidth + gap;
-            
-            const normalizedIndex = ((this.currentIndex % this.filteredItems.length) + this.filteredItems.length) % this.filteredItems.length;
-            const offset = (containerWidth / 2) - (cardWidth / 2) - (normalizedIndex * totalWidth);
-            
+
+            const activeIdx = this.activeIndex;
+
+            // Center the active slide
+            const offset = (containerWidth - cardWidth) / 2 - (activeIdx * totalWidth);
+
             let dragOffset = 0;
             if (this.isDragging) {
                 dragOffset = this.dragCurrentX - this.dragStartX;
             }
-            
+
             const finalOffset = offset + dragOffset;
-            
+
             return {
                 transform: 'translateX(' + finalOffset + 'px)',
                 transition: this.isDragging ? 'none' : 'transform 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94)'
             };
         },
-        
+
         watchedCount() {
             return this.filteredItems.filter(item => item.status === 'watched').length;
         },
-        
+
         favoritesCount() {
             return this.filteredItems.filter(item => this.favorites.includes(item.id)).length;
         },
-        
+
         recentlyWatched() {
             const history = this.watchHistory;
             const items = this.items.filter(item => history[item.id]);
@@ -159,7 +161,7 @@ const app = new Vue({
                 return (history[b.id]?.lastWatched || 0) - (history[a.id]?.lastWatched || 0);
             });
         },
-        
+
         playerModalStyle() {
             return {
                 maxWidth: this.isFullscreen ? '100%' : '90%',
@@ -171,7 +173,7 @@ const app = new Vue({
                 margin: this.isFullscreen ? '0' : 'auto'
             };
         },
-        
+
         videoContainerStyle() {
             return {
                 height: this.isFullscreen ? 'calc(100vh - 100px)' : (this.playerHeight + 'vh'),
@@ -179,46 +181,46 @@ const app = new Vue({
             };
         }
     },
-    
+
     mounted() {
         this.loadItems();
         this.setupKeyboardShortcuts();
         this.startAutoPlay();
-        
+
         if (!this.darkMode) {
             document.body.classList.add('light-theme');
             document.getElementById('app').classList.add('light-theme');
         }
-        
+
         this.cleanWatchHistory();
         window.addEventListener('resize', this.handleResize);
-        
-        // Слушаем изменения темы из других вкладок/приложений
+
+        // Listen for theme changes from other tabs/apps
         document.addEventListener('themeChanged', this.onThemeChanged);
     },
-    
+
     beforeDestroy() {
         this.stopAutoPlay();
         this.stopWatchTimer();
         window.removeEventListener('resize', this.handleResize);
         document.removeEventListener('themeChanged', this.onThemeChanged);
     },
-    
+
     methods: {
         onThemeChanged(e) {
             this.darkMode = e.detail.darkMode;
         },
-        
+
         handleResize() {
             if (this.filteredItems.length > 0) {
                 this.$forceUpdate();
             }
         },
-        
+
         getCardWidth() {
             const container = this.$refs.carouselContainer;
             if (!container) return 320;
-            
+
             const width = container.offsetWidth;
             if (width >= 1200) return 320;
             if (width >= 992) return 300;
@@ -226,30 +228,33 @@ const app = new Vue({
             if (width >= 480) return 240;
             return 200;
         },
-        
+
         getGap() {
             const container = this.$refs.carouselContainer;
             if (!container) return 20;
-            
+
             const width = container.offsetWidth;
             if (width >= 768) return 20;
             return 10;
         },
-        
+
         getSlideStyle(index) {
             const totalItems = this.filteredItems.length;
             if (totalItems === 0) return {};
-            
-            let diff = index - (this.currentIndex % totalItems);
-            
+
+            const activeIdx = this.activeIndex;
+
+            let diff = index - activeIdx;
+
+            // Wrap around
             if (diff > totalItems / 2) {
                 diff = diff - totalItems;
             } else if (diff < -totalItems / 2) {
                 diff = diff + totalItems;
             }
-            
+
             const absDiff = Math.abs(diff);
-            
+
             if (diff === 0) {
                 return {
                     transform: 'scale(1) translateX(0)',
@@ -257,7 +262,7 @@ const app = new Vue({
                     zIndex: 10
                 };
             }
-            
+
             if (absDiff === 1) {
                 const dir = diff < 0 ? -1 : 1;
                 return {
@@ -266,25 +271,25 @@ const app = new Vue({
                     zIndex: 5
                 };
             }
-            
+
             const scale = Math.max(0.7, 0.85 - (absDiff - 1) * 0.05);
             const opacity = Math.max(0.15, 0.4 - (absDiff - 1) * 0.08);
-            
+
             return {
                 transform: 'scale(' + scale + ')',
                 opacity: opacity,
                 zIndex: 5 - Math.min(absDiff, 5)
             };
         },
-        
+
         async loadItems() {
             this.loading = true;
             this.statusMessage = 'Loading...';
-            
+
             try {
                 const response = await fetch('/api/items');
                 const data = await response.json();
-                
+
                 if (data.success) {
                     this.items = data.items.map(item => ({
                         ...item,
@@ -305,10 +310,10 @@ const app = new Vue({
                 this.loading = false;
             }
         },
-        
+
         applyFilter(filterValue) {
             this.activeFilter = filterValue;
-            
+
             if (filterValue === 'favorite') {
                 this.filteredItems = this.items.filter(item => this.favorites.includes(item.id));
             } else if (filterValue === 'all') {
@@ -318,13 +323,13 @@ const app = new Vue({
                     item => item.status === filterValue
                 );
             }
-            
+
             if (this.filteredItems.length > 0) {
                 this.currentIndex = Math.floor(this.filteredItems.length / 2);
             }
-            
+
             this.restartAutoPlay();
-            
+
             if (this.searchQuery) {
                 this.filteredItems = this.filteredItems.filter(item =>
                     item.title.toLowerCase().includes(this.searchQuery.toLowerCase()) ||
@@ -333,20 +338,20 @@ const app = new Vue({
                 );
             }
         },
-        
+
         async searchItems() {
             if (!this.searchQuery.trim()) {
                 this.applyFilter(this.activeFilter);
                 return;
             }
-            
+
             this.loading = true;
             this.statusMessage = 'Searching...';
-            
+
             try {
                 const response = await fetch('/api/search?q=' + encodeURIComponent(this.searchQuery));
                 const data = await response.json();
-                
+
                 if (data.success) {
                     this.filteredItems = data.items.map(item => ({
                         ...item,
@@ -368,7 +373,7 @@ const app = new Vue({
                 this.loading = false;
             }
         },
-        
+
         toggleTheme() {
             if (ThemeManager) {
                 this.darkMode = ThemeManager.toggle();
@@ -384,30 +389,30 @@ const app = new Vue({
                 }
             }
         },
-        
+
         startAutoPlay() {
             this.stopAutoPlay();
             if (!this.autoPlayEnabled) return;
             if (this.filteredItems.length < 2) return;
-            
+
             this.autoPlayInterval = setInterval(() => {
                 if (this.filteredItems.length > 1 && !this.isDragging && !this.showPlayer && !this.selectedItem) {
                     this.nextVideo();
                 }
             }, this.autoPlayDelay);
         },
-        
+
         stopAutoPlay() {
             if (this.autoPlayInterval) {
                 clearInterval(this.autoPlayInterval);
                 this.autoPlayInterval = null;
             }
         },
-        
+
         restartAutoPlay() {
             this.startAutoPlay();
         },
-        
+
         toggleAutoPlay() {
             this.autoPlayEnabled = !this.autoPlayEnabled;
             if (this.autoPlayEnabled) {
@@ -418,7 +423,7 @@ const app = new Vue({
                 this.showToast('Autoplay disabled', 'info');
             }
         },
-        
+
         nextVideo() {
             if (this.filteredItems.length === 0) return;
             this.currentIndex = this.currentIndex + 1;
@@ -427,7 +432,7 @@ const app = new Vue({
                 this.restartAutoPlay();
             }
         },
-        
+
         prevVideo() {
             if (this.filteredItems.length === 0) return;
             this.currentIndex = this.currentIndex - 1;
@@ -436,26 +441,26 @@ const app = new Vue({
                 this.restartAutoPlay();
             }
         },
-        
+
         goTo(index) {
             if (this.filteredItems.length === 0) return;
-            const normalizedIndex = ((index % this.filteredItems.length) + this.filteredItems.length) % this.filteredItems.length;
-            const currentNormalized = ((this.currentIndex % this.filteredItems.length) + this.filteredItems.length) % this.filteredItems.length;
-            
-            let diff = normalizedIndex - currentNormalized;
+            const targetIndex = ((index % this.filteredItems.length) + this.filteredItems.length) % this.filteredItems.length;
+            const currentNormalized = this.activeIndex;
+
+            let diff = targetIndex - currentNormalized;
             if (diff > this.filteredItems.length / 2) {
                 diff = diff - this.filteredItems.length;
             } else if (diff < -this.filteredItems.length / 2) {
                 diff = diff + this.filteredItems.length;
             }
-            
+
             this.currentIndex = this.currentIndex + diff;
             this.updateStatus();
             if (this.autoPlayEnabled) {
                 this.restartAutoPlay();
             }
         },
-        
+
         randomVideo() {
             if (this.filteredItems.length === 0) {
                 this.showToast('No videos in collection', 'info');
@@ -465,21 +470,20 @@ const app = new Vue({
             this.goTo(randomIndex);
             this.showToast('Random selection', 'info');
         },
-        
+
         updateStatus() {
-            const normalizedIndex = ((this.currentIndex % this.filteredItems.length) + this.filteredItems.length) % this.filteredItems.length;
-            const item = this.filteredItems[normalizedIndex];
+            const item = this.filteredItems[this.activeIndex];
             if (item) {
                 this.statusMessage = 'Now playing: ' + item.title;
             }
         },
-        
+
         getWatchProgress(item) {
             if (!this.watchHistory[item.id]) return 0;
             const progress = this.watchHistory[item.id].progress || 0;
             return Math.min(Math.round(progress), 100);
         },
-        
+
         updateWatchTime(itemId, progress) {
             if (!this.watchHistory[itemId]) {
                 this.watchHistory[itemId] = {
@@ -494,7 +498,7 @@ const app = new Vue({
             this.watchHistory[itemId].progress = newProgress;
             this.watchHistory[itemId].lastWatched = Date.now();
             localStorage.setItem('watchHistory', JSON.stringify(this.watchHistory));
-            
+
             if (newProgress >= 99) {
                 const item = this.items.find(i => i.id === itemId);
                 if (item && item.status !== 'watched') {
@@ -502,7 +506,7 @@ const app = new Vue({
                 }
             }
         },
-        
+
         async changeStatusToWatched(item) {
             try {
                 const response = await fetch('/api/items/' + item.id, {
@@ -515,7 +519,7 @@ const app = new Vue({
                         status: 'watched'
                     })
                 });
-                
+
                 const data = await response.json();
                 if (data.success) {
                     const index = this.items.findIndex(i => i.id === item.id);
@@ -533,7 +537,7 @@ const app = new Vue({
                 console.error('Error updating status:', error);
             }
         },
-        
+
         startWatchTimer(item) {
             if (item.status === 'watched') return;
             this.watchStartTime = Date.now();
@@ -547,14 +551,14 @@ const app = new Vue({
                 }
             }, 5000);
         },
-        
+
         stopWatchTimer() {
             if (this.watchInterval) {
                 clearInterval(this.watchInterval);
                 this.watchInterval = null;
             }
         },
-        
+
         cleanWatchHistory() {
             const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
             let cleaned = false;
@@ -568,29 +572,29 @@ const app = new Vue({
                 localStorage.setItem('watchHistory', JSON.stringify(this.watchHistory));
             }
         },
-        
+
         openVideo(item) {
             this.selectedItem = { ...item };
             if (this.autoPlayEnabled) {
                 this.stopAutoPlay();
             }
         },
-        
+
         closeDetail() {
             this.selectedItem = null;
             if (this.autoPlayEnabled) {
                 this.restartAutoPlay();
             }
         },
-        
+
         playVideo(item) {
             if (!item.video_path) {
                 this.showToast('Video not found', 'error');
                 return;
             }
-            
+
             const isUrl = item.video_path.startsWith('http://') || item.video_path.startsWith('https://');
-            
+
             this.currentVideo = {
                 ...item,
                 isUrl: isUrl
@@ -600,14 +604,14 @@ const app = new Vue({
             this.playerHeight = 60;
             this.showPlayer = true;
             this.selectedItem = null;
-            
+
             this.startWatchTimer(item);
-            
+
             if (this.autoPlayEnabled) {
                 this.stopAutoPlay();
             }
         },
-        
+
         closePlayer() {
             this.showPlayer = false;
             this.currentVideo = null;
@@ -620,7 +624,7 @@ const app = new Vue({
                 this.restartAutoPlay();
             }
         },
-        
+
         toggleFullscreen() {
             this.isFullscreen = !this.isFullscreen;
             if (this.isFullscreen) {
@@ -638,22 +642,22 @@ const app = new Vue({
                 }
             }
         },
-        
+
         changePlayerSize(delta) {
             this.playerWidth = Math.max(40, Math.min(95, this.playerWidth + delta));
         },
-        
+
         changePlayerHeight(delta) {
             this.playerHeight = Math.max(30, Math.min(90, this.playerHeight + delta));
         },
-        
+
         updateProgress() {
             const video = this.$refs.videoPlayer;
             if (!video) return;
-            
+
             this.currentTime = this.formatTime(video.currentTime);
             this.totalDuration = this.formatTime(video.duration);
-            
+
             if (this.currentVideo && video.duration > 0) {
                 const progress = (video.currentTime / video.duration) * 100;
                 if (progress > 0) {
@@ -661,7 +665,7 @@ const app = new Vue({
                 }
             }
         },
-        
+
         onVideoEnded() {
             this.showToast('Playback finished', 'info');
             if (this.currentVideo) {
@@ -675,14 +679,14 @@ const app = new Vue({
                 this.restartAutoPlay();
             }
         },
-        
+
         formatTime(seconds) {
             if (!seconds || isNaN(seconds)) return '00:00';
             const mins = Math.floor(seconds / 60);
             const secs = Math.floor(seconds % 60);
             return String(mins).padStart(2, '0') + ':' + String(secs).padStart(2, '0');
         },
-        
+
         toggleFavorite(item) {
             const index = this.favorites.indexOf(item.id);
             if (index === -1) {
@@ -696,7 +700,7 @@ const app = new Vue({
             }
             localStorage.setItem('favorites', JSON.stringify(this.favorites));
         },
-                
+
         startDrag(event) {
             if (this.filteredItems.length < 2) return;
             this.isDragging = true;
@@ -706,16 +710,16 @@ const app = new Vue({
                 this.stopAutoPlay();
             }
         },
-        
+
         onDrag(event) {
             if (!this.isDragging) return;
             this.dragCurrentX = event.clientX;
         },
-        
+
         endDrag() {
             if (!this.isDragging) return;
             this.isDragging = false;
-            
+
             const deltaX = this.dragCurrentX - this.dragStartX;
             if (Math.abs(deltaX) > this.swipeThreshold) {
                 if (deltaX < 0) {
@@ -728,7 +732,7 @@ const app = new Vue({
                 this.restartAutoPlay();
             }
         },
-        
+
         startTouch(event) {
             if (this.filteredItems.length < 2) return;
             const touch = event.touches[0];
@@ -739,17 +743,17 @@ const app = new Vue({
                 this.stopAutoPlay();
             }
         },
-        
+
         onTouch(event) {
             if (!this.isDragging) return;
             const touch = event.touches[0];
             this.dragCurrentX = touch.clientX;
         },
-        
+
         endTouch() {
             if (!this.isDragging) return;
             this.isDragging = false;
-            
+
             const deltaX = this.dragCurrentX - this.dragStartX;
             if (Math.abs(deltaX) > this.swipeThreshold) {
                 if (deltaX < 0) {
@@ -762,7 +766,7 @@ const app = new Vue({
                 this.restartAutoPlay();
             }
         },
-        
+
         openAddModal() {
             this.newItem = {
                 title: '',
@@ -781,32 +785,32 @@ const app = new Vue({
                 this.stopAutoPlay();
             }
         },
-        
+
         closeAddModal() {
             this.showAddModal = false;
             if (this.autoPlayEnabled) {
                 this.restartAutoPlay();
             }
         },
-        
+
         async addItem() {
             if (!this.newItem.title.trim()) {
                 const now = new Date();
                 this.newItem.title = 'Video from ' + now.toLocaleDateString('en-US') + ' ' + now.toLocaleTimeString('en-US', {hour: '2-digit', minute: '2-digit'});
             }
-            
+
             let videoPath = this.newItem.video_path;
             if (this.newItem.video_url && this.newItem.video_url.trim()) {
                 videoPath = this.newItem.video_url.trim();
             }
-            
+
             if (!videoPath) {
                 this.showToast('Specify video link or upload file', 'error');
                 return;
             }
-            
+
             this.loading = true;
-            
+
             try {
                 const response = await fetch('/api/items', {
                     method: 'POST',
@@ -818,12 +822,12 @@ const app = new Vue({
                         video_path: videoPath
                     })
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.success) {
-                    this.items.push({ 
-                        ...data.item, 
+                    this.items.push({
+                        ...data.item,
                         favorite: false,
                         isUrl: videoPath.startsWith('http://') || videoPath.startsWith('https://')
                     });
@@ -841,26 +845,26 @@ const app = new Vue({
                 this.loading = false;
             }
         },
-        
+
         browseVideo() {
             this.$refs.fileInput.click();
         },
-        
+
         async handleFileUpload(event) {
             const file = event.target.files[0];
             if (!file) return;
-            
+
             const formData = new FormData();
             formData.append('video', file);
-            
+
             try {
                 const response = await fetch('/api/upload', {
                     method: 'POST',
                     body: formData
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.success) {
                     this.newItem.video_path = '/api/video/' + data.filename;
                     this.newItem.video_url = '';
@@ -878,20 +882,20 @@ const app = new Vue({
                 console.error('Error uploading video:', error);
                 this.showToast('Video upload error', 'error');
             }
-            
+
             event.target.value = '';
         },
-        
+
         async deleteItem(item) {
             if (!confirm('Delete "' + item.title + '"?')) return;
-            
+
             try {
                 const response = await fetch('/api/items/' + item.id, {
                     method: 'DELETE'
                 });
-                
+
                 const data = await response.json();
-                
+
                 if (data.success) {
                     this.items = this.items.filter(i => i.id !== item.id);
                     this.applyFilter(this.activeFilter);
@@ -922,69 +926,69 @@ const app = new Vue({
             };
             return types[ext] || 'video/mp4';
         },
-        
+
         showToast(message, type = 'info') {
             const id = ++this.toastId;
             this.toasts.push({ id, message, type });
-            
+
             setTimeout(() => {
                 this.toasts = this.toasts.filter(t => t.id !== id);
             }, 3000);
         },
-        
-        // ==================== BATCH UPLOAD METHODS ====================
-        
+
+        // ===== BATCH UPLOAD METHODS =====
+
         openBatchAddModal() {
             this.batchFiles = [];
             this.batchEditMode = true;
             this.batchUploading = false;
             this.showBatchAddModal = true;
         },
-        
+
         closeBatchAddModal() {
             this.showBatchAddModal = false;
             this.batchFiles = [];
             this.batchUploading = false;
         },
-        
+
         dragEnter(event) {
             event.preventDefault();
             this.isDragOver = true;
         },
-        
+
         dragLeave(event) {
             event.preventDefault();
             this.isDragOver = false;
         },
-        
+
         handleBatchDrop(event) {
             this.isDragOver = false;
             const files = event.dataTransfer.files;
             this.processBatchFiles(files);
         },
-        
+
         handleBatchFiles(event) {
             const files = event.target.files;
             this.processBatchFiles(files);
             event.target.value = '';
         },
-        
+
         processBatchFiles(files) {
             const validExtensions = ['mp4', 'avi', 'mkv', 'mov', 'webm', 'm4v', 'mpg', 'mpeg'];
-            
+
             for (let file of files) {
                 const ext = file.name.split('.').pop().toLowerCase();
                 if (!validExtensions.includes(ext)) {
                     this.showToast('Skipping unsupported file: ' + file.name, 'error');
                     continue;
                 }
-                
+
                 const duplicate = this.batchFiles.find(f => f.name === file.name && f.size === file.size);
                 if (duplicate) {
                     this.showToast('Skipping duplicate: ' + file.name, 'info');
                     continue;
                 }
-                
+
                 const fileName = file.name.replace(/\.[^/.]+$/, '');
                 this.batchFiles.push({
                     file: file,
@@ -1001,57 +1005,57 @@ const app = new Vue({
                     }
                 });
             }
-            
+
             if (this.batchFiles.length > 0) {
                 this.showToast('Added ' + this.batchFiles.length + ' files', 'success');
             }
         },
-        
+
         removeBatchFile(index) {
             this.batchFiles.splice(index, 1);
         },
-        
+
         clearBatchFiles() {
             if (this.batchFiles.length === 0) return;
             if (!confirm('Remove all ' + this.batchFiles.length + ' files?')) return;
             this.batchFiles = [];
             this.showToast('Cleared all files', 'info');
         },
-        
+
         toggleBatchEditMode() {
             this.batchEditMode = !this.batchEditMode;
         },
-        
+
         async uploadBatchFiles() {
             if (this.batchFiles.length === 0) {
                 this.showToast('No files to upload', 'error');
                 return;
             }
-            
+
             this.batchUploading = true;
             let successCount = 0;
             let failCount = 0;
-            
+
             for (let i = 0; i < this.batchFiles.length; i++) {
                 const batchFile = this.batchFiles[i];
-                
+
                 try {
                     const formData = new FormData();
                     formData.append('video', batchFile.file);
-                    
+
                     const uploadResponse = await fetch('/api/upload', {
                         method: 'POST',
                         body: formData
                     });
-                    
+
                     const uploadData = await uploadResponse.json();
-                    
+
                     if (!uploadData.success) {
                         failCount++;
                         this.showToast('Failed to upload: ' + batchFile.name + ' - ' + (uploadData.error || 'Unknown error'), 'error');
                         continue;
                     }
-                    
+
                     const itemData = {
                         title: batchFile.metadata.title || batchFile.name.replace(/\.[^/.]+$/, ''),
                         year: batchFile.metadata.year || new Date().getFullYear(),
@@ -1063,7 +1067,7 @@ const app = new Vue({
                         video_path: '/api/video/' + uploadData.filename,
                         duration: uploadData.duration_minutes || 0
                     };
-                    
+
                     const itemResponse = await fetch('/api/items', {
                         method: 'POST',
                         headers: {
@@ -1071,13 +1075,13 @@ const app = new Vue({
                         },
                         body: JSON.stringify(itemData)
                     });
-                    
+
                     const itemDataResult = await itemResponse.json();
-                    
+
                     if (itemDataResult.success) {
                         successCount++;
-                        this.items.push({ 
-                            ...itemDataResult.item, 
+                        this.items.push({
+                            ...itemDataResult.item,
                             favorite: false,
                             isUrl: false
                         });
@@ -1085,33 +1089,33 @@ const app = new Vue({
                         failCount++;
                         this.showToast('Failed to add: ' + batchFile.name + ' - ' + (itemDataResult.error || 'Unknown error'), 'error');
                     }
-                    
+
                     this.statusMessage = 'Uploading ' + (i + 1) + '/' + this.batchFiles.length + '...';
-                    
+
                 } catch (error) {
                     console.error('Error uploading batch file:', error);
                     failCount++;
                     this.showToast('Error uploading: ' + batchFile.name, 'error');
                 }
             }
-            
+
             this.batchUploading = false;
-            
+
             this.applyFilter(this.activeFilter);
-            
+
             if (successCount > 0) {
                 this.showToast('Successfully uploaded ' + successCount + ' files' + (failCount > 0 ? ', ' + failCount + ' failed' : ''), 'success');
             } else {
                 this.showToast('All files failed to upload', 'error');
             }
-            
+
             if (failCount === 0 && successCount > 0) {
                 this.closeBatchAddModal();
             }
-            
+
             this.statusMessage = 'Uploaded ' + successCount + ' files';
         },
-        
+
         formatFileSize(bytes) {
             if (!bytes || bytes === 0) return '0 B';
             if (bytes < 1024) return bytes + ' B';
@@ -1119,7 +1123,7 @@ const app = new Vue({
             if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
             return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
         },
-        
+
         setupKeyboardShortcuts() {
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'ArrowRight') {
@@ -1133,8 +1137,7 @@ const app = new Vue({
                 if (e.key === 'Enter') {
                     if (this.filteredItems.length > 0 && !this.selectedItem && !this.showPlayer) {
                         e.preventDefault();
-                        const normalizedIndex = ((this.currentIndex % this.filteredItems.length) + this.filteredItems.length) % this.filteredItems.length;
-                        const currentItem = this.filteredItems[normalizedIndex];
+                        const currentItem = this.filteredItems[this.activeIndex];
                         if (currentItem) {
                             this.openVideo(currentItem);
                         }
@@ -1198,14 +1201,14 @@ const app = new Vue({
             });
         },
     },
-    
+
     watch: {
         searchQuery(query) {
             if (!query.trim()) {
                 this.applyFilter(this.activeFilter);
             }
         },
-        
+
         filteredItems() {
             if (this.autoPlayEnabled) {
                 this.restartAutoPlay();
@@ -1214,7 +1217,7 @@ const app = new Vue({
     }
 });
 
-// Слушаем изменения темы из других вкладок/приложений
+// Listen for theme changes from other tabs/apps
 document.addEventListener('themeChanged', (e) => {
     if (app && app.darkMode !== undefined) {
         app.darkMode = e.detail.darkMode;

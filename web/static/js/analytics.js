@@ -1,16 +1,16 @@
-// Подключаем ThemeManager
+// Connect ThemeManager
 if (typeof ThemeManager === 'undefined') {
     console.warn('ThemeManager not loaded, using fallback');
 }
 
 const app = new Vue({
     el: '#app',
-    
+
     data() {
         return {
             loading: false,
             darkMode: ThemeManager ? ThemeManager.isDark() : true,
-            
+
             stats: {
                 total_items: 0,
                 avg_rating: 0,
@@ -20,7 +20,7 @@ const app = new Vue({
                 genre_counts: {},
                 year_counts: {}
             },
-            
+
             statusData: [],
             genreData: [],
             yearData: [],
@@ -30,23 +30,23 @@ const app = new Vue({
             watchingList: [],
             favorites: [],
             allItems: [],
-            
+
             statusChart: null,
             ratingChart: null,
             genreChart: null,
             yearChart: null,
-            
+
             lastUpdated: new Date().toLocaleString(),
-            
+
             toasts: [],
             toastId: 0,
-            
+
             showReportsModal: false,
             showReportViewer: false,
             reports: [],
             reportsLoading: false,
             currentReport: { name: '', content: '' },
-            
+
             showChartsModal: false,
             showChartViewer: false,
             charts: [],
@@ -54,13 +54,13 @@ const app = new Vue({
             currentChart: { name: '', url: '' }
         };
     },
-    
+
     computed: {
         mostCommonStatus() {
             if (this.statusData.length === 0) return null;
             return this.statusData.reduce((a, b) => a.count > b.count ? a : b);
         },
-        
+
         formatDuration() {
             return (minutes) => {
                 if (!minutes || minutes === 0) return '0 min';
@@ -70,7 +70,7 @@ const app = new Vue({
                 return hours + 'h ' + mins + 'm';
             };
         },
-        
+
         statusColors() {
             return {
                 'watched': '#4CAF50',
@@ -79,7 +79,7 @@ const app = new Vue({
                 'on_hold': '#EF5350'
             };
         },
-        
+
         getStatusLabel() {
             const labels = {
                 'watched': 'Watched',
@@ -89,25 +89,23 @@ const app = new Vue({
             };
             return (status) => labels[status] || status;
         },
-        
+
         favoritesList() {
             if (!this.allItems || this.allItems.length === 0) return [];
             if (!this.favorites || this.favorites.length === 0) return [];
-            
-            const result = this.allItems.filter(item => this.favorites.includes(item.id));
-            return result;
+            return this.allItems.filter(item => this.favorites.includes(item.id));
         },
-        
+
         watchingItemsList() {
             if (!this.allItems || this.allItems.length === 0) return [];
-            
+
             const history = JSON.parse(localStorage.getItem('watchHistory') || '{}');
             const result = this.allItems.filter(item => {
                 if (item.status === 'watched') return false;
                 const progress = this.getWatchProgress(item);
                 return progress > 0 && progress < 100;
             });
-            
+
             return result.sort((a, b) => {
                 const aTime = history[a.id]?.lastWatched || 0;
                 const bTime = history[b.id]?.lastWatched || 0;
@@ -115,30 +113,30 @@ const app = new Vue({
             });
         }
     },
-    
+
     mounted() {
         this.loadAnalytics();
         this.loadReports();
         this.loadCharts();
         this.setupKeyboardShortcuts();
-        
+
         if (!this.darkMode) {
             document.body.classList.add('light-theme');
             document.getElementById('app').classList.add('light-theme');
         }
-        
+
         const storedFavorites = JSON.parse(localStorage.getItem('favorites') || '[]');
         console.log('Stored favorites from localStorage:', storedFavorites);
-        
-        // Слушаем изменения темы из других вкладок/приложений
+
+        // Listen for theme changes from other tabs/apps
         document.addEventListener('themeChanged', this.onThemeChanged);
     },
-    
+
     beforeDestroy() {
         this.destroyCharts();
         document.removeEventListener('themeChanged', this.onThemeChanged);
     },
-    
+
     methods: {
         onThemeChanged(e) {
             this.darkMode = e.detail.darkMode;
@@ -146,23 +144,23 @@ const app = new Vue({
                 this.renderCharts();
             }, 100);
         },
-        
+
         async loadAnalytics() {
             this.loading = true;
-            
+
             try {
                 const [statsRes, itemsRes] = await Promise.all([
                     fetch('/api/analytics/stats'),
                     fetch('/api/items')
                 ]);
-                
+
                 const statsData = await statsRes.json();
                 const itemsData = await itemsRes.json();
-                
+
                 const storedFavorites = JSON.parse(localStorage.getItem('favorites') || '[]');
                 this.favorites = storedFavorites;
                 console.log('Favorites loaded from localStorage:', this.favorites);
-                
+
                 if (statsData.success) {
                     this.stats = statsData.stats;
                     this.statusData = statsData.status_data || [];
@@ -171,26 +169,26 @@ const app = new Vue({
                     this.ratingData = statsData.rating_data || [];
                     this.topRated = statsData.top_rated || [];
                 }
-                
+
                 if (itemsData.success) {
                     this.allItems = itemsData.items;
                     console.log('All items loaded:', this.allItems.length);
-                    
+
                     this.watchingItems = this.allItems.filter(item => {
                         if (item.status !== 'watching') return false;
                         const progress = this.getWatchProgress(item);
                         return progress > 0;
                     });
-                    
+
                     this.watchingList = this.watchingItemsList;
                     console.log('Watching items with progress:', this.watchingList);
                 }
-                
+
                 this.lastUpdated = new Date().toLocaleString();
                 this.$nextTick(() => {
                     this.renderCharts();
                 });
-                
+
             } catch (error) {
                 console.error('Error loading analytics:', error);
                 this.showToast('Error loading analytics data', 'error');
@@ -198,7 +196,7 @@ const app = new Vue({
                 this.loading = false;
             }
         },
-        
+
         async loadReports() {
             this.reportsLoading = true;
             try {
@@ -213,7 +211,7 @@ const app = new Vue({
                 this.reportsLoading = false;
             }
         },
-        
+
         async loadCharts() {
             this.chartsLoading = true;
             try {
@@ -234,7 +232,7 @@ const app = new Vue({
                 this.chartsLoading = false;
             }
         },
-        
+
         handleImageError(event) {
             event.target.style.display = 'none';
             const parent = event.target.parentElement;
@@ -252,11 +250,11 @@ const app = new Vue({
             this.renderGenreChart();
             this.renderYearChart();
         },
-        
+
         renderStatusChart() {
             const ctx = document.getElementById('statusChart')?.getContext('2d');
             if (!ctx) return;
-            
+
             const labels = this.statusData.map(d => d.label);
             const data = this.statusData.map(d => d.count);
             const colors = {
@@ -265,9 +263,9 @@ const app = new Vue({
                 'planned': '#64B5F6',
                 'on_hold': '#EF5350'
             };
-            
+
             const backgroundColors = this.statusData.map(d => colors[d.value] || '#6B6B6B');
-            
+
             this.statusChart = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
@@ -297,14 +295,14 @@ const app = new Vue({
                 }
             });
         },
-        
+
         renderRatingChart() {
             const ctx = document.getElementById('ratingChart')?.getContext('2d');
             if (!ctx) return;
-            
+
             const labels = this.ratingData.map(d => d.label);
             const data = this.ratingData.map(d => d.count);
-            
+
             this.ratingChart = new Chart(ctx, {
                 type: 'bar',
                 data: {
@@ -349,15 +347,15 @@ const app = new Vue({
                 }
             });
         },
-        
+
         renderGenreChart() {
             const ctx = document.getElementById('genreChart')?.getContext('2d');
             if (!ctx) return;
-            
+
             const topGenres = this.genreData.slice(0, 10);
             const labels = topGenres.map(d => d.label);
             const data = topGenres.map(d => d.count);
-            
+
             this.genreChart = new Chart(ctx, {
                 type: 'horizontalBar',
                 data: {
@@ -406,19 +404,19 @@ const app = new Vue({
                 }
             });
         },
-        
+
         renderYearChart() {
             const ctx = document.getElementById('yearChart')?.getContext('2d');
             if (!ctx) return;
-            
+
             const sorted = [...this.yearData].sort((a, b) => a.label - b.label);
             const labels = sorted.map(d => d.label);
             const data = sorted.map(d => d.count);
-            
+
             const gradient = ctx.createLinearGradient(0, 0, 0, 200);
             gradient.addColorStop(0, this.darkMode ? 'rgba(217, 122, 58, 0.6)' : 'rgba(217, 122, 58, 0.4)');
             gradient.addColorStop(1, this.darkMode ? 'rgba(217, 122, 58, 0.0)' : 'rgba(217, 122, 58, 0.0)');
-            
+
             this.yearChart = new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -469,7 +467,7 @@ const app = new Vue({
                 }
             });
         },
-        
+
         destroyCharts() {
             if (this.statusChart) {
                 this.statusChart.destroy();
@@ -488,20 +486,20 @@ const app = new Vue({
                 this.yearChart = null;
             }
         },
-        
+
         getWatchProgress(item) {
             const history = JSON.parse(localStorage.getItem('watchHistory') || '{}');
             if (!history[item.id]) return 0;
             return Math.min(Math.round(history[item.id].progress || 0), 100);
         },
-        
+
         async refreshData() {
             await this.loadAnalytics();
             await this.loadReports();
             await this.loadCharts();
             this.showToast('Analytics data refreshed', 'success');
         },
-        
+
         async generateCharts() {
             this.loading = true;
             try {
@@ -509,7 +507,7 @@ const app = new Vue({
                     method: 'POST'
                 });
                 const data = await response.json();
-                
+
                 if (data.success) {
                     this.showToast('Charts generated successfully', 'success');
                     await this.loadReports();
@@ -525,12 +523,12 @@ const app = new Vue({
                 this.loading = false;
             }
         },
-        
+
         async exportReport() {
             try {
                 const response = await fetch('/api/analytics/export');
                 const data = await response.json();
-                
+
                 if (data.success) {
                     const blob = await (await fetch(data.url)).blob();
                     const link = document.createElement('a');
@@ -550,7 +548,7 @@ const app = new Vue({
                 this.showToast('Export error', 'error');
             }
         },
-        
+
         async viewReport(report) {
             try {
                 const response = await fetch('/api/reports/view/' + report.name);
@@ -569,16 +567,16 @@ const app = new Vue({
                 this.showToast('Error viewing report', 'error');
             }
         },
-        
+
         async deleteReport(report) {
             if (!confirm('Delete "' + report.name + '"?')) return;
-            
+
             try {
                 const response = await fetch('/api/reports/delete/' + report.name, {
                     method: 'DELETE'
                 });
                 const data = await response.json();
-                
+
                 if (data.success) {
                     this.reports = this.reports.filter(r => r.name !== report.name);
                     this.showToast('Report deleted', 'success');
@@ -590,17 +588,17 @@ const app = new Vue({
                 this.showToast('Delete error', 'error');
             }
         },
-        
+
         async deleteAllReports() {
             if (this.reports.length === 0) return;
             if (!confirm('Delete all ' + this.reports.length + ' reports?')) return;
-            
+
             try {
                 const response = await fetch('/api/reports/delete-all', {
                     method: 'DELETE'
                 });
                 const data = await response.json();
-                
+
                 if (data.success) {
                     this.reports = [];
                     this.showToast('All reports deleted', 'success');
@@ -612,7 +610,7 @@ const app = new Vue({
                 this.showToast('Delete error', 'error');
             }
         },
-        
+
         async downloadReport(report) {
             try {
                 const response = await fetch('/api/reports/download/' + report.name);
@@ -630,8 +628,8 @@ const app = new Vue({
                 this.showToast('Download error', 'error');
             }
         },
-        
-        // === CHART METHODS ===
+
+        // ===== CHART METHODS =====
         async viewChart(chart) {
             if (!chart.url) {
                 this.showToast('Chart URL not found', 'error');
@@ -640,16 +638,16 @@ const app = new Vue({
             this.currentChart = chart;
             this.showChartViewer = true;
         },
-        
+
         async deleteChart(chart) {
             if (!confirm('Delete "' + chart.name + '"?')) return;
-            
+
             try {
                 const response = await fetch('/api/charts/delete/' + chart.name, {
                     method: 'DELETE'
                 });
                 const data = await response.json();
-                
+
                 if (data.success) {
                     this.charts = this.charts.filter(c => c.name !== chart.name);
                     this.showToast('Chart deleted', 'success');
@@ -661,17 +659,17 @@ const app = new Vue({
                 this.showToast('Delete error', 'error');
             }
         },
-        
+
         async deleteAllCharts() {
             if (this.charts.length === 0) return;
             if (!confirm('Delete all ' + this.charts.length + ' charts?')) return;
-            
+
             try {
                 const response = await fetch('/api/charts/delete-all', {
                     method: 'DELETE'
                 });
                 const data = await response.json();
-                
+
                 if (data.success) {
                     this.charts = [];
                     this.showToast('All charts deleted', 'success');
@@ -683,7 +681,7 @@ const app = new Vue({
                 this.showToast('Delete error', 'error');
             }
         },
-        
+
         async downloadChart(chart) {
             try {
                 const response = await fetch('/api/charts/download/' + chart.name);
@@ -714,18 +712,18 @@ const app = new Vue({
                 }
             }
         },
-        
+
         formatFileSize(bytes) {
             if (bytes < 1024) return bytes + ' B';
             if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
             return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
         },
-        
+
         formatDate(timestamp) {
             const date = new Date(timestamp);
             return date.toLocaleString();
         },
-        
+
         toggleTheme() {
             if (ThemeManager) {
                 this.darkMode = ThemeManager.toggle();
@@ -740,19 +738,19 @@ const app = new Vue({
                     document.getElementById('app').classList.add('light-theme');
                 }
             }
-            
+
             this.renderCharts();
         },
-        
+
         showToast(message, type = 'info') {
             const id = ++this.toastId;
             this.toasts.push({ id, message, type });
-            
+
             setTimeout(() => {
                 this.toasts = this.toasts.filter(t => t.id !== id);
             }, 3000);
         },
-        
+
         setupKeyboardShortcuts() {
             document.addEventListener('keydown', (e) => {
                 if (e.key === 'r' && !e.ctrlKey && !e.metaKey) {
@@ -772,7 +770,7 @@ const app = new Vue({
             });
         }
     },
-    
+
     watch: {
         darkMode() {
             setTimeout(() => {
@@ -782,7 +780,7 @@ const app = new Vue({
     }
 });
 
-// Слушаем изменения темы из других вкладок/приложений
+// Listen for theme changes from other tabs/apps
 document.addEventListener('themeChanged', (e) => {
     if (app && app.darkMode !== undefined) {
         app.darkMode = e.detail.darkMode;

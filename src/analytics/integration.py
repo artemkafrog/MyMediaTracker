@@ -5,8 +5,9 @@ from src.analytics.recommender import ContentRecommender
 from src.analytics.report_generator import ReportGenerator
 from src.analytics.dash_router import DashRouter
 
-
 class AnalyticsIntegration:
+    """Integrates all analytics modules into a single interface."""
+
     def __init__(self, db_path: str = "data/media_tracker.db"):
         self.loader = AnalyticsDataLoader(db_path)
         self.df = None
@@ -14,17 +15,17 @@ class AnalyticsIntegration:
         self.recommender = None
         self.report_gen = None
         self.router = None
-        
+
     @timing
     def initialize(self) -> bool:
+        """Initialize all analytics components."""
         try:
             self.df = self.loader.load_all_data()
-            
-            # Проверяем, что данные загружены
+
             if self.df is None or len(self.df) == 0:
                 print("No data loaded from database")
                 return False
-            
+
             self.analyzer = ExploratoryAnalyzer(self.df)
             self.recommender = ContentRecommender(self.df)
             self.report_gen = ReportGenerator(self.df)
@@ -40,6 +41,7 @@ class AnalyticsIntegration:
             return False
 
     def show_stats_text(self) -> str:
+        """Return statistics as formatted text."""
         if self.report_gen is None:
             if not self.initialize():
                 return "Analytics module not initialized"
@@ -47,6 +49,7 @@ class AnalyticsIntegration:
         return self.report_gen.generate_text_report(stats)
 
     def generate_full_report(self) -> dict:
+        """Generate full analytics report with plots."""
         if self.analyzer is None:
             if not self.initialize():
                 return {}
@@ -57,6 +60,7 @@ class AnalyticsIntegration:
         return stats
 
     def get_recommendations(self, item_id: int, top_n: int = 5) -> list:
+        """Get content-based recommendations for an item."""
         if self.recommender is None:
             if not self.initialize():
                 return []
@@ -67,6 +71,7 @@ class AnalyticsIntegration:
             return []
 
     def get_recommendations_from_planned(self, top_n: int = 5) -> list:
+        """Get recommendations from PLANNED items."""
         if self.recommender is None:
             if not self.initialize():
                 return []

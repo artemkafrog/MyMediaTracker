@@ -27,7 +27,7 @@ body {
     background: #0B0B0B;
 }
 
-/* ===== АНИМАЦИИ ===== */
+/* ===== ANIMATIONS ===== */
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(12px); }
     to { opacity: 1; transform: translateY(0); }
@@ -42,7 +42,7 @@ body {
     to { opacity: 1; transform: translateY(0) scale(1); }
 }
 
-/* ===== КНОПКИ ===== */
+/* ===== BUTTONS ===== */
 .glass-btn {
     background: transparent;
     border: none;
@@ -103,7 +103,7 @@ body {
     background: rgba(224, 96, 96, 0.08);
 }
 
-/* ===== ИНПУТЫ ===== */
+/* ===== INPUTS ===== */
 .glass-input {
     background: #1A1A1A;
     border: 1px solid #2A2A2A;
@@ -158,7 +158,7 @@ body {
     color: #6B6B6B;
 }
 
-/* ===== КАРТОЧКИ ===== */
+/* ===== CARDS ===== */
 .glass-card {
     background: #1A1A1A;
     border: 1px solid #2A2A2A;
@@ -172,7 +172,7 @@ body {
     box-shadow: 0 8px 40px rgba(0, 0, 0, 0.4);
 }
 
-/* ===== СТАТУС БЭДЖИ ===== */
+/* ===== STATUS BADGES ===== */
 .status-badge {
     padding: 2px 12px;
     border: 1px solid #3A3A3A;
@@ -206,7 +206,7 @@ body {
     color: #EF5350;
 }
 
-/* ===== ХЕДЕР ===== */
+/* ===== HEADER ===== */
 .header {
     display: flex;
     align-items: center;
@@ -251,7 +251,7 @@ body {
     justify-content: flex-end;
 }
 
-/* ===== ПОИСК ===== */
+/* ===== SEARCH ===== */
 .search-container {
     display: flex;
     align-items: center;
@@ -290,14 +290,14 @@ body {
     color: #FFFFFF;
 }
 
-/* ===== РАЗДЕЛИТЕЛЬ ===== */
+/* ===== DIVIDER ===== */
 .divider {
     height: 1px;
     background: #1A1A1A;
     flex-shrink: 0;
 }
 
-/* ===== ФИЛЬТРЫ ===== */
+/* ===== FILTERS ===== */
 .filter-bar {
     display: flex;
     align-items: center;
@@ -334,7 +334,7 @@ body {
     background: rgba(255, 255, 255, 0.08);
 }
 
-/* ===== ОСНОВНОЙ КОНТЕНТ ===== */
+/* ===== MAIN CONTENT ===== */
 .main-content {
     flex: 1;
     overflow: auto;
@@ -342,14 +342,14 @@ body {
     background: #0B0B0B;
 }
 
-/* ===== СЕТКА ===== */
+/* ===== GRID ===== */
 .grid-view {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 20px;
 }
 
-/* ===== ВИДЕО КАРТОЧКА (РЕДИЗАЙН) ===== */
+/* ===== VIDEO CARD ===== */
 .video-card {
     cursor: pointer;
     background: #141414;
@@ -465,7 +465,7 @@ body {
     margin-top: 2px;
 }
 
-/* ===== СПИСОК ===== */
+/* ===== LIST ===== */
 .list-view {
     animation: fadeIn 0.3s ease;
 }
@@ -548,7 +548,7 @@ body {
     color: #FFFFFF;
 }
 
-/* ===== СТАТУС БАР ===== */
+/* ===== STATUS BAR ===== */
 .status-bar {
     display: flex;
     justify-content: space-between;
@@ -574,7 +574,7 @@ body {
     color: #A1A1A1;
 }
 
-/* ===== ЗАГРУЗКА ===== */
+/* ===== LOADING ===== */
 .loading {
     display: flex;
     flex-direction: column;
@@ -611,7 +611,7 @@ body {
     grid-column: 1 / -1;
 }
 
-/* ===== МОДАЛЬНЫЕ ОКНА ===== */
+/* ===== MODALS ===== */
 .modal-overlay {
     position: fixed;
     top: 0;
@@ -676,7 +676,7 @@ body {
     padding: 24px;
 }
 
-/* ===== ФОРМЫ ===== */
+/* ===== FORMS ===== */
 .form-group {
     margin-bottom: 16px;
 }
@@ -740,7 +740,7 @@ body {
     margin-top: 24px;
 }
 
-/* ===== ДЕТАЛИ ===== */
+/* ===== DETAILS ===== */
 .detail-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -795,7 +795,7 @@ body {
     flex-wrap: wrap;
 }
 
-/* ===== СТАТИСТИКА ===== */
+/* ===== STATISTICS ===== */
 .stats-grid {
     display: grid;
     grid-template-columns: 1fr 1fr 1fr;
@@ -851,7 +851,7 @@ body {
     color: #A1A1A1;
 }
 
-/* ===== ПЛЕЕР ===== */
+/* ===== PLAYER ===== */
 .player-container {
     margin: 16px 0;
     border-radius: 10px;
@@ -972,7 +972,7 @@ body {
     border-radius: 10px;
 }
 
-/* ===== FULLSCREEN ПЛЕЕР ===== */
+/* ===== FULLSCREEN PLAYER ===== */
 .modal-player.fullscreen {
     max-width: 100% !important;
     width: 100% !important;
@@ -1037,7 +1037,7 @@ body {
     border-radius: 0;
 }
 
-/* ===== ТОСТЫ ===== */
+/* ===== TOASTS ===== */
 .toast-container {
     position: fixed;
     bottom: 50px;
@@ -1072,7 +1072,7 @@ body {
     border-color: #64B5F6;
 }
 
-/* ===== СКРОЛЛБАР ===== */
+/* ===== SCROLLBAR ===== */
 ::-webkit-scrollbar {
     width: 4px;
     height: 4px;
@@ -1091,7 +1091,7 @@ body {
     background: #3A3A3A;
 }
 
-/* ===== ПРОГРЕСС ===== */
+/* ===== PROGRESS ===== */
 .timer-progress {
     height: 2px;
     background: #1A1A1A;
@@ -1117,7 +1117,7 @@ body {
     border-radius: 4px;
 }
 
-/* ===== АДАПТИВНОСТЬ ===== */
+/* ===== RESPONSIVE ===== */
 @media (max-width: 1200px) {
     .grid-view {
         grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
@@ -1286,7 +1286,7 @@ body {
     }
 }
 
-/* ==================== LIGHT THEME ==================== */
+/* ===== LIGHT THEME ===== */
 .light-theme {
     background: #F7F7F7;
 }
@@ -1765,7 +1765,7 @@ body {
     background: #E5E5E5;
 }
 
-/* ===== УТИЛИТЫ ===== */
+/* ===== UTILITIES ===== */
 .text-orange { color: #D97A3A; }
 .text-muted { color: #6B6B6B; }
 .mt-8 { margin-top: 8px; }
@@ -2059,8 +2059,8 @@ body {
     color: #EF5350;
     border-color: rgba(239, 83, 80, 0.2);
 }
-/* ==================== HEADER DIVIDER ==================== */
 
+/* ===== HEADER DIVIDER ===== */
 .header-divider {
     width: 1px;
     height: 32px;
@@ -2073,8 +2073,7 @@ body {
     background: #E5E5E5;
 }
 
-/* ==================== HEADER SECTIONS ==================== */
-
+/* ===== HEADER SECTIONS ===== */
 .header-nav {
     display: flex;
     align-items: center;

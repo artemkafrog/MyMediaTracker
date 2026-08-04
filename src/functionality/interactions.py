@@ -1,10 +1,12 @@
+from datetime import date
+
 from src.functionality.media import MediaItem
 from src.functionality.enums import MediaType, Status
 from src.functionality.catalog import MediaCatalog
-from datetime import datetime, date
 from src.functionality.reminder import Reminder
 
 def describe_item(item: MediaItem) -> str:
+    """Generate a human-readable description of a media item."""
     item_type = item.get_media_type()
     item_status = item.status
     title, release_date, item_rating, duration, genres_str, authors_str, description, video_path = item.get_summary()
@@ -27,27 +29,31 @@ def describe_item(item: MediaItem) -> str:
         f"\tRating: {item_rating}/10\n"
         f"\tDuration: {duration} min\n"
     )
-    
+
     if authors_str:
         description_text += f"\tAuthors: {authors_str}\n"
-    
+
     if description:
         description_text += f"\tDescription: {description}\n"
-    
+
     if video_path:
         description_text += f"\tVideo path: {video_path}\n"
-    
+
     description_text += f"\tGenres: {genres_str}"
-    
+
     if item_rating >= 8.5:
         return "\tMasterpiece!\n\n" + description_text
     return description_text
 
-def change_status(catalog: MediaCatalog, item_id: int, new_status: Status):
-    item = catalog.get_item(item_id)    
+
+def change_status(catalog: MediaCatalog, item_id: int, new_status: Status) -> None:
+    """Change the status of an item."""
+    item = catalog.get_item(item_id)
     item.status = new_status
 
-def get_upcoming_releases(reminder: Reminder, days_ahead=30) -> str:
+
+def get_upcoming_releases(reminder: Reminder, days_ahead: int = 30) -> str:
+    """Get upcoming releases as a formatted string."""
     reminders = reminder.get_all_reminders()
     upcoming_releases = ""
     for title, days in reminders:
