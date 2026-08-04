@@ -1,9 +1,10 @@
+
 <div align="center">
 
-<!-- ===== NEON FRAME ===== -->
+<!-- ===== HEADER ===== -->
 <table border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%;">
 <tr>
-<td style="border: 2px solid #ff6b6b; border-radius: 20px; padding: 30px; background: linear-gradient(135deg, rgba(255,107,107,0.05), rgba(78,205,196,0.05)); box-shadow: 0 0 30px rgba(255,107,107,0.3), 0 0 60px rgba(78,205,196,0.2), inset 0 0 60px rgba(255,107,107,0.05);">
+<td style="padding: 30px;">
 
 # MediaTracker
 
@@ -18,8 +19,6 @@
 </tr>
 </table>
 
-
-
 </div>
 
 ---
@@ -33,85 +32,70 @@
 
 <div align="center">
 
-<!-- ===== SCREENSHOTS WITH CAPTIONS ON IMAGE ===== -->
-<table border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%; max-width: 820px; margin: 0 auto; background: transparent;">
+<!-- ===== SCREENSHOTS ===== -->
+<table border="0" cellpadding="0" cellspacing="0" style="border-collapse: collapse; width: 100%; max-width: 820px; margin: 0 auto;">
 
 <tr>
-<td style="padding: 6px 0; text-align: center; background: transparent;">
+<td style="padding: 10px 0; text-align: center;">
 
 <!-- Collection Grid -->
-<div style="position: relative; display: inline-block; width: 100%; border-radius: 14px; overflow: hidden; box-shadow: 0 0 40px rgba(78,205,196,0.12);">
-  <img src="screenshots/collection_grid.png" alt="Collection Grid" style="width: 100%; height: auto; display: block;">
-  <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 30px 20px 18px; background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 50%, transparent 100%); text-align: center;">
-    <span style="color: #ffffff; font-size: 17px; font-weight: 600; letter-spacing: 0.3px; text-shadow: 0 2px 12px rgba(0,0,0,0.5);">Collection</span>
-    <br>
-    <span style="color: rgba(255,255,255,0.7); font-size: 13px; font-weight: 400; text-shadow: 0 1px 8px rgba(0,0,0,0.4);">View all your media in a clean grid or list layout</span>
-  </div>
-</div>
+<img src="screenshots/collection_grid.png" alt="Collection Grid" width="100%" style="max-width: 800px; display: block; margin: 0 auto;">
+<br>
+<strong>Collection</strong>
+<br>
+<em>View all your media in a clean grid or list layout</em>
 
 </td>
 </tr>
 
 <tr>
-<td style="padding: 6px 0; text-align: center; background: transparent;">
+<td style="padding: 10px 0; text-align: center;">
 
 <!-- Charts -->
-<div style="position: relative; display: inline-block; width: 100%; border-radius: 14px; overflow: hidden; box-shadow: 0 0 40px rgba(78,205,196,0.12);">
-  <img src="screenshots/charts.png" alt="Analytics Dashboard" style="width: 100%; height: auto; display: block;">
-  <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 30px 20px 18px; background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 50%, transparent 100%); text-align: center;">
-    <span style="color: #ffffff; font-size: 17px; font-weight: 600; letter-spacing: 0.3px; text-shadow: 0 2px 12px rgba(0,0,0,0.5);">Charts</span>
-    <br>
-    <span style="color: rgba(255,255,255,0.7); font-size: 13px; font-weight: 400; text-shadow: 0 1px 8px rgba(0,0,0,0.4);">Visualize your collection with interactive charts</span>
-  </div>
-</div>
+<img src="screenshots/charts.png" alt="Analytics Dashboard" width="100%" style="max-width: 800px; display: block; margin: 0 auto;">
+<br>
+<strong>Charts</strong>
+<br>
+<em>Visualize your collection with interactive charts</em>
 
 </td>
 </tr>
 
 <tr>
-<td style="padding: 6px 0; text-align: center; background: transparent;">
+<td style="padding: 10px 0; text-align: center;">
 
 <!-- Reports -->
-<div style="position: relative; display: inline-block; width: 100%; border-radius: 14px; overflow: hidden; box-shadow: 0 0 40px rgba(78,205,196,0.12);">
-  <img src="screenshots/reports.png" alt="Analytics Dashboard" style="width: 100%; height: auto; display: block;">
-  <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 30px 20px 18px; background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 50%, transparent 100%); text-align: center;">
-    <span style="color: #ffffff; font-size: 17px; font-weight: 600; letter-spacing: 0.3px; text-shadow: 0 2px 12px rgba(0,0,0,0.5);">Reports</span>
-    <br>
-    <span style="color: rgba(255,255,255,0.7); font-size: 13px; font-weight: 400; text-shadow: 0 1px 8px rgba(0,0,0,0.4);">Generate your collection reports</span>
-  </div>
-</div>
+<img src="screenshots/reports.png" alt="Analytics Dashboard" width="100%" style="max-width: 800px; display: block; margin: 0 auto;">
+<br>
+<strong>Reports</strong>
+<br>
+<em>Generate your collection reports</em>
 
 </td>
 </tr>
 
 <tr>
-<td style="padding: 6px 0; text-align: center; background: transparent;">
+<td style="padding: 10px 0; text-align: center;">
 
-<!-- Charts -->
-<div style="position: relative; display: inline-block; width: 100%; border-radius: 14px; overflow: hidden; box-shadow: 0 0 40px rgba(78,205,196,0.12);">
-  <img src="screenshots/analytics.png" alt="Analytics Dashboard" style="width: 100%; height: auto; display: block;">
-  <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 30px 20px 18px; background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 50%, transparent 100%); text-align: center;">
-    <span style="color: #ffffff; font-size: 17px; font-weight: 600; letter-spacing: 0.3px; text-shadow: 0 2px 12px rgba(0,0,0,0.5);">Analytics Dashboard</span>
-    <br>
-    <span style="color: rgba(255,255,255,0.7); font-size: 13px; font-weight: 400; text-shadow: 0 1px 8px rgba(0,0,0,0.4);">Visualize your collection with interactive charts and statistics</span>
-  </div>
-</div>
+<!-- Analytics -->
+<img src="screenshots/analytics.png" alt="Analytics Dashboard" width="100%" style="max-width: 800px; display: block; margin: 0 auto;">
+<br>
+<strong>Analytics Dashboard</strong>
+<br>
+<em>Visualize your collection with interactive charts and statistics</em>
 
 </td>
 </tr>
 
 <tr>
-<td style="padding: 6px 0; text-align: center; background: transparent;">
+<td style="padding: 10px 0; text-align: center;">
 
 <!-- Player -->
-<div style="position: relative; display: inline-block; width: 100%; border-radius: 14px; overflow: hidden; box-shadow: 0 0 40px rgba(78,205,196,0.12);">
-  <img src="screenshots/player.png" alt="Video Player" style="width: 100%; height: auto; display: block;">
-  <div style="position: absolute; bottom: 0; left: 0; right: 0; padding: 30px 20px 18px; background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.5) 50%, transparent 100%); text-align: center;">
-    <span style="color: #ffffff; font-size: 17px; font-weight: 600; letter-spacing: 0.3px; text-shadow: 0 2px 12px rgba(0,0,0,0.5);">Video Player</span>
-    <br>
-    <span style="color: rgba(255,255,255,0.7); font-size: 13px; font-weight: 400; text-shadow: 0 1px 8px rgba(0,0,0,0.4);">Built-in player with progress tracking and fullscreen</span>
-  </div>
-</div>
+<img src="screenshots/player.png" alt="Video Player" width="100%" style="max-width: 800px; display: block; margin: 0 auto;">
+<br>
+<strong>Video Player</strong>
+<br>
+<em>Built-in player with progress tracking and fullscreen</em>
 
 </td>
 </tr>
@@ -185,6 +169,3 @@ This project is licensed under the MIT License — see the [LICENSE](LICENSE) fi
 <div align="center">
   Made with ❤️ by <a href="https://github.com/artemkafrog">artemkafrog</a>
 </div>
-
-</div>
-
